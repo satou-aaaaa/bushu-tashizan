@@ -311,8 +311,12 @@ const splitsOf = (y) => (BP[y] ? BP[y].split("|").map((t) => t.split(" ")) : [])
 const pkey = (ps) => ps.slice().sort().join(" ");
 // 打った字が問題の部品を持つか（部品ごとに true＝持つ・false＝表では分からない）。組み立て表を奥までたどり、まちがいの札はデータの説明も使う。
 // 表に無い分け方もあるので「持たない」とは言わない（○だけ付ける）。同じ部品が2つ（火＋火）なら、1つの分け方の中の数も見る
-function deepOf(y, seen = new Set()) { const out = new Set(); if (seen.has(y)) return out; seen.add(y); for (const sp of splitsOf(y)) for (const c of sp) { out.add(c); deepOf(c, seen).forEach((z) => out.add(z)); } return out; }
-function hitsOf(p, y) { const have = {}, j = p.d.indexOf(y), sps = [...splitsOf(y), ...(j >= 0 && p.dl[j] ? [p.dl[j].split(" + ")] : [])]; for (const sp of sps) { const c = {}; sp.forEach((x) => (c[x] = (c[x] || 0) + 1)); for (const x in c) have[x] = Math.max(have[x] || 0, c[x]); for (const x of sp) deepOf(x).forEach((z) => (have[z] = have[z] || 1)); } deepOf(y).forEach((z) => (have[z] = have[z] || 1)); const used = {}; return p.ps.map((c) => { used[c] = (used[c] || 0) + 1; return (have[c] || 0) >= used[c]; }); }
+// 1つの分け方の中では奥の部品の数を足し（林→木2つ。森＝木＋林なら木3つ）、分け方どうしは部品ごとに多いほうをとる
+const addTo = (a, b) => { for (const z in b) a[z] = (a[z] || 0) + b[z]; return a; };
+const maxTo = (a, b) => { for (const z in b) a[z] = Math.max(a[z] || 0, b[z]); return a; };
+function spCount(sp, seen) { const c = {}; for (const x of sp) { c[x] = (c[x] || 0) + 1; addTo(c, deepOf(x, seen)); } return c; }
+function deepOf(y, seen = new Set()) { const out = {}; if (seen.has(y)) return out; const s2 = new Set(seen).add(y); for (const sp of splitsOf(y)) maxTo(out, spCount(sp, s2)); return out; }
+function hitsOf(p, y) { const have = deepOf(y), j = p.d.indexOf(y); if (j >= 0 && p.dl[j]) maxTo(have, spCount(p.dl[j].split(" + "), new Set([y]))); const used = {}; return p.ps.map((c) => { used[c] = (used[c] || 0) + 1; return (have[c] || 0) >= used[c]; }); }
 // 別解：答えとちがう字でも、同じ部品の組み合わせでできる字（組み立て表にあれば）
 const isAlt = (p, y) => y !== p.x && splitsOf(y).some((sp) => pkey(sp) === pkey(p.ps));
 // 打った字が何と何でできているか（まちがいの札はデータの説明、ほかは組み立て表の最初の分け方）
@@ -330,8 +334,8 @@ const MAXH = (mode) => (mode === "h" ? 0 : 3); // ヒント：読み → 熟語 
 function home() {
   const s = load(), k = todayKey(), done = s.days[k], hdone = s.hdays[k];
   // 最後の1問を終えて結果を見る前に閉じた日は、開き直したら結果へ進める（記録をつける）
-  for (const m of ["d", "h", ...aRuns(s)]) { const r = s.runs[m]; if (r && r.res.length >= r.list.length) { MODE = m; return finish(); } }
   if (!s.ach) save((s2) => { if (!s2.ach) { s2.ach = {}; achGot(s2).forEach((id) => (s2.ach[id] = 1)); } }); // 実績の前から遊んでいた人に、もう取れている分をまとめて出さない
+  for (const m of ["d", "h", ...aRuns(s)]) { const r = s.runs[m]; if (r && r.res.length >= r.list.length) { MODE = m; return finish(); } }
   const n = Object.keys(s.dex).length, nr = nextRank(n), st = streak(s.days), miss = missedDays(s, k);
   const rd = s.runs.d && s.runs.d.date === k ? s.runs.d : null, rh = s.runs.h && s.runs.h.date === k ? s.runs.h : null;
   const demo = P.find((p) => p.x === "明") || P[0];
