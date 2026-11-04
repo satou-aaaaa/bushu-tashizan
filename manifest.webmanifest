@@ -1,0 +1,17 @@
+{
+  "name": "部首たし算",
+  "short_name": "部首たし算",
+  "description": "漢字の部品を合わせてできる字を当てる1日5問のクイズ",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3ede0",
+  "theme_color": "#f3ede0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
