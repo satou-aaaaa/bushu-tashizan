@@ -1,4 +1,4 @@
-// 部首たし算の検査。問題（答えが1つを組み立ての表で確かめ直す・まちがいの札）・5問の組み方（何年分）・通しで遊ぶ・ヒント・続きから・上級・漢字帳・記録・スマホ幅・PWA を確かめる。
+// 部首たし算の検査。問題（答えが1つを組み立ての表で確かめ直す・まちがいの札）・入力の組み立て表・5問の組み方（何年分）・通しで遊ぶ・入力して答える・ヒントと候補・続きから・上級・漢字帳・実績・カレンダー・あとから・記録・スマホ幅・PWA を確かめる。
 // 使い方: node qa/run.mjs   失敗があれば終了コード 1。結果は qa-report/report.md。
 import { chromium } from "playwright";
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
@@ -32,6 +32,11 @@ check("部品は2つ（部品3つの問題は3つ）で、組み立ての表（K
 check("読み（音・訓のどちらか）と、答えの字を使う熟語と読みがある", P.every((p) => (p.on || p.kun) && p.w.length === 2 && p.w.includes(p.x) && /^[ぁ-ゖー]+$/.test(p.wr) && (!p.on || /^[ァ-ヺー]+$/.test(p.on))));
 check("つらい言葉（死・殺など）を使わない", !P.some((p) => /[死殺葬屍姦淫娼尿糞呪遺棺骸刑獄墓弔喪病癌毒虐暴拷凶犯罪賊奴隷]/.test(p.x + p.ps.join("") + p.w + p.d.join(""))));
 
+{ // 入力の手がかり用の組み立て表 parts.js は tools/parts.txt から作ったものと同じ（手で直していない）
+  const sp = { window: {} }; vm.runInNewContext(readFileSync(path.join(root, "parts.js"), "utf8"), sp);
+  const BP = sp.window.BT_PARTS, M = {}; for (const [k, s] of T) (M[k] = M[k] || []).push(s.join(" "));
+  check("入力の手がかり用の組み立て表 parts.js は tools/parts.txt（KanjiVG）と合う（node tools/make-parts.cjs で作る）", Object.keys(BP).length === Object.keys(M).length && Object.keys(M).every((k) => BP[k] === M[k].join("|")));
+  check("組み立て表で、どの問題にも別解（同じ部品の組み合わせのほかの字）が無い", P.every((p) => !Object.keys(BP).some((y) => y !== p.x && BP[y].split("|").some((t) => key(t.split(" ")) === key(p.ps))))); }
 const html = readFileSync(path.join(root, "index.html"), "utf8");
 check("終えた回を消すのは同じ回のときだけ・0時を過ぎたホームの「今日」のボタンは描き直す（2026-11-04 CodeRabbit）", /c\.date === run\.date && c\.id === run\.id\) s2\.runs\[MODE\] = null/.test(html) && /\$\("go-d"\)\.onclick = \(\) => \(k !== todayKey\(\) \? home\(\)/.test(html));
 check("別のタブで今日の分を終えたあと、古い画面から今日・上級をもう一度始めない（2026-11-04 CodeRabbit）", /\(mode === "d" && s\.days\[k\]\) \|\| \(mode === "h" && s\.hdays\[k\]\)\) return;/.test(html));
@@ -51,7 +56,7 @@ check("画面にお笑いの言葉を入れない（本物っぽく）", !/お�
   check("感想フォームは名前・メールを聞かない（楽しさ・よかった所・直してほしい所だけ）", /id: fun/.test(fy) && /id: good/.test(fy) && /id: fix/.test(fy) && !/id: (name|email|mail)/.test(fy) && /labels: \["感想"\]/.test(fy)); }
 { const sw = readFileSync(path.join(root, "sw.js"), "utf8"), mf = JSON.parse(readFileSync(path.join(root, "manifest.webmanifest"), "utf8"));
   const shell = JSON.parse(sw.match(/SHELL = (\[[^\]]+\])/)[1].replace(/'/g, '"'));
-  const need = ["./index.html", "./data.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+  const need = ["./index.html", "./data.js", "./parts.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
   check("PWA：ネットの返事の保存は、イベントの中で waitUntil に預ける（遅れて届いた新しい版も保存できる）", /e\.waitUntil\(Promise\.race\(\[net\.then[^\n]*Promise\.race\(\[caches\.open[^\n]*wait\(15000\)\]\); \}, \(\) => \{\}\)\.catch\(\(\) => \{\}\), wait\(60000\)\]\)\);/.test(sw) && !/\.then\([^\n]*e\.waitUntil/.test(sw));
   check("PWA：sw.js は画面のファイルを全部保存し、外へ何も送らない", need.every((f) => shell.includes(f)) && !/https?:\/\//.test(sw.replace(/^\/\/.*$/gm, "")));
   check("PWA：manifest にアイコン2つと名前がある", mf.name === "部首たし算" && mf.icons.length >= 2 && mf.start_url === "./"); }
@@ -73,6 +78,9 @@ async function newPage(w = 390, h = 844) {
 }
 const curP = (page) => page.evaluate(() => { const g = window.__bt, r = g.load().runs[g.mode()]; return g.P[r.list[r.res.length]]; });
 const KEY = "bushu-v1";
+// 入力して答える：入力欄に打って「決める」。打った字が下に残っているか
+const type = async (pg, ch) => { await pg.fill("#ans", ch); await pg.click("#go"); };
+const triedHas = async (pg, ch) => ((await pg.textContent("#tried")) || "").includes(ch);
 try {
   const page = await newPage();
   // 2. 5問の組み方（日付の乱数）。3年分
@@ -111,32 +119,32 @@ try {
   check("ホームの例は遊び方と同じ（日＋月＝？）", (await page.textContent(".hero .eq")).replace(/\s/g, "") === "日＋月＝？");
   await page.click("#go-d");
   let p = await curP(page);
-  check("1問目は「やさしい」・部品2つ・札は4枚・答えの所は「？」", p.t === 0 && (await page.locator("#bd .pt").count()) === 3 && (await page.locator(".tile").count()) === 4 && (await page.textContent("#ctr")) === "？");
-  const tiles4 = await page.evaluate(() => [...document.querySelectorAll(".tile")].map((b) => b.dataset.ch));
-  const wrong = tiles4.find((y) => y !== p.x);
-  await page.click(`.tile[data-ch="${wrong}"]`);
+  check("1問目は「やさしい」・部品2つ・札は無く入力欄（16px以上・lang=ja・自動修正なし）・答えの所は「？」", p.t === 0 && (await page.locator("#bd .pt").count()) === 3 && (await page.locator(".tile").count()) === 0 && (await page.textContent("#ctr")) === "？" && (await page.evaluate(() => { const a = document.querySelector("#ans"); return parseFloat(getComputedStyle(a).fontSize) >= 16 && a.lang === "ja" && a.getAttribute("autocomplete") === "off" && a.getAttribute("autocapitalize") === "off" && a.getAttribute("spellcheck") === "false" && a.getAttribute("enterkeyhint") === "done"; })));
+  const wrong = p.d[0];
+  await type(page, wrong);
   const lb = p.dl[p.d.indexOf(wrong)];
-  check("まちがえると、選んだ字が答えの所に出て、その字の組み立て（分かるとき）が出る", (await page.textContent("#ctr")) === wrong && (await page.textContent("#near")).includes(wrong) && (!lb || (await page.textContent("#near")).includes(lb.split(" + ")[0])));
-  check("まちがえた札は消え、もう押せない", await page.isDisabled(`.tile[data-ch="${wrong}"]`));
+  check("まちがえると、打った字が答えの所に出て、その字の組み立て（分かるとき）が出る", (await page.textContent("#ctr")) === wrong && (await page.textContent("#near")).includes(wrong) && (!lb || (await page.textContent("#near")).includes(lb.split(" + ")[0])));
+  check("まちがえた字が持つ部品に○が付き（×は付けない）、下に打った字が残る・入力欄は空にもどる", await page.evaluate((x) => { const g = window.__bt, p = g.P.find((q) => q.id === x.id), hs = g.hitsOf(p, x.w), mk = [...document.querySelectorAll("#bd .pt:not(.ans)")].map((e) => !!e.querySelector(".mk.ok")); return JSON.stringify(mk) === JSON.stringify(hs) && !document.querySelector("#bd .mk.ng"); }, { id: p.id, w: wrong }) && (await triedHas(page, wrong)) && (await page.inputValue("#ans")) === "");
   await page.click("#hint");
   check("ヒント1回目で読みが出る（熟語はまだ出ない）", (await page.textContent("#hints")).includes(p.on || p.kun) && !(await page.textContent("#hints")).includes("熟語"));
   await page.click("#hint");
-  check("ヒント2回目で、答えの字を□にした熟語と読みが出る（答えの字は出さない）", (await page.textContent("#hints")).includes(p.w.replace(p.x, "□")) && !(await page.textContent("#hints")).includes(p.w) && (await page.isDisabled("#hint")));
+  check("ヒント2回目で、答えの字を□にした熟語と読みが出る（答えの字は出さない）・次のヒントは「候補から選ぶ」", (await page.textContent("#hints")).includes(p.w.replace(p.x, "□")) && !(await page.textContent("#hints")).includes(p.w) && (await page.textContent("#hint")).includes("候補") && (await page.locator("#cands .tile").count()) === 0);
   await page.reload(); await page.click("#go-d");
-  check("途中で閉じても、まちがえた札とヒントはそのまま（続きから）", await page.isDisabled(`.tile[data-ch="${wrong}"]`) && (await page.textContent("#miss")).includes("ヒント 2") && (await page.textContent("#hints")).includes("□"));
+  check("途中で閉じても、まちがえた字とヒントはそのまま（続きから）", (await triedHas(page, wrong)) && (await page.textContent("#miss")).includes("ヒント 2") && (await page.textContent("#hints")).includes("□"));
   await page.click("#back"); await page.click("#go-p"); await page.locator(".lv button").first().click(); await page.click("#back"); await page.click("#go-d");
-  check("練習を始めても、今日の途中経過は消えない", await page.isDisabled(`.tile[data-ch="${wrong}"]`) && (await page.evaluate(() => window.__bt.mode())) === "d");
-  await page.click(`.tile[data-ch="${p.x}"]`);
+  check("練習を始めても、今日の途中経過は消えない", (await triedHas(page, wrong)) && (await page.evaluate(() => window.__bt.mode())) === "d");
+  await type(page, p.x);
   check("正解すると、組み立て・読み・熟語が出て★1（まちがい1・ヒント2）", (await page.textContent(".verdict")).includes(p.w) && (await page.textContent(".verdict")).includes(p.wr) && (await page.locator(".verdict .stars .off").textContent()).length === 2);
-  check("正解のあとは札とヒントが消える", !(await page.locator("#tiles").isVisible()) && (await page.textContent("#hints")) === "");
+  check("正解のあとは入力欄とヒントが消える", !(await page.locator("#inp").isVisible()) && (await page.textContent("#hints")) === "");
+  check("正解すると部品が答えへ寄る（手ごたえ）・初めての実績が結果に小さく出る", (await page.locator("#bd .eq.merge").count()) === 1 && (await page.textContent(".verdict .achnew")).includes("🏅 実績：はじめの一字"));
   await page.click("#next");
   p = await curP(page);
   await page.evaluate((k) => { const s = JSON.parse(localStorage.getItem(k)); s.runs.d.res.push({ m: 0, h: 0 }); localStorage.setItem(k, JSON.stringify(s)); }, KEY);
-  await page.click(`.tile[data-ch="${p.x}"]`);
+  await type(page, p.x);
   check("別のタブで先に進んでいたら、古い画面の正解は足さず今の問題を出し直す", (await page.evaluate(() => window.__bt.load().runs.d.res.length)) === 2 && (await page.textContent("header")).includes("3/5"));
   await page.evaluate((k) => { const s = JSON.parse(localStorage.getItem(k)); s.runs.d.res.pop(); localStorage.setItem(k, JSON.stringify(s)); }, KEY);
   await page.reload(); await page.click("#go-d");
-  for (let j = 0; j < 4; j++) { p = await curP(page); await page.click(`.tile[data-ch="${p.x}"]`); await page.click("#next"); }
+  for (let j = 0; j < 4; j++) { p = await curP(page); await type(page, p.x); await page.click("#next"); }
   const share = await page.textContent(".share");
   const daily = await page.evaluate(() => { const g = window.__bt; return g.dailyList(g.todayKey()).map((id) => g.P[id]); });
   check("5問で結果・シェアの文は番号と色だけ（答えの字・部品・熟語は出さない）", /部首たし算 #\d+/.test(share) && /🟨💡💡 🟩 🟩 🟩 🟩/.test(share) && !daily.some((q) => share.includes(q.x) || q.ps.some((c) => share.includes(c)) || share.includes(q.w)));
@@ -144,17 +152,17 @@ try {
   check("結果に5問の答えと組み立てが出る", (await page.locator(".rlist > div").count()) === 5);
   check("まちがいのあった日は Ko-fi のひとことを出さない", (await page.locator(".kofi").count()) === 0);
   await page.click("#back");
-  check("ホームで連続1日・今日の結果を見るに変わる・漢字帳に5字", (await page.textContent(".stats")).includes("1連続の日") && (await page.textContent("#go-d")).includes("今日の結果") && (await page.textContent("#go-dex")).includes("5/"));
+  check("ホームで連続1日・今日の結果を見るに変わる・漢字帳に5字", (await page.textContent(".rank")).includes("連続1日") && (await page.textContent("#go-d")).includes("今日の結果") && (await page.textContent("#go-dex")).includes("5/"));
   await page.click("#go-h");
-  check("上級は部品3つ・札6枚・ヒントのボタンが無い", (await page.locator(".tile").count()) === 6 && (await page.locator("#hint").count()) === 0 && (await curP(page)).t === 3 && (await page.locator("#bd .pt").count()) === 4);
-  for (let j = 0; j < 5; j++) { p = await curP(page); await page.click(`.tile[data-ch="${p.x}"]`); await page.click("#next"); }
+  check("上級は部品3つ・入力だけ（札も候補もヒントのボタンも無い）", (await page.locator("#ans").count()) === 1 && (await page.locator(".tile").count()) === 0 && (await page.locator("#hint").count()) === 0 && (await curP(page)).t === 3 && (await page.locator("#bd .pt").count()) === 4);
+  for (let j = 0; j < 5; j++) { p = await curP(page); await type(page, p.x); await page.click("#next"); }
   check("上級を全問一発で初めて終えると、結果に Ko-fi のひとことが1行", (await page.locator(".kofi").count()) === 1 && (await page.textContent(".big")).includes("全問一発"));
   await page.click("#back"); await page.click("#go-h");
   check("2回目に結果を開いても Ko-fi のひとことは出ない", (await page.locator(".kofi").count()) === 0);
   await page.click("#back");
   await page.click("#go-p"); await page.locator(".lv button").nth(1).click();
   const played = [];
-  for (let j = 0; j < 5; j++) { p = await curP(page); played.push(p.x); await page.click(`.tile[data-ch="${p.x}"]`); await page.click("#next"); }
+  for (let j = 0; j < 5; j++) { p = await curP(page); played.push(p.x); await type(page, p.x); await page.click("#next"); }
   const after = await page.evaluate(() => { const s = window.__bt.load(); return { days: Object.keys(s.days).length, dex: s.dex }; });
   check("練習は今日の記録を増やさず、漢字帳には載る", after.days === 1 && played.every((x) => after.dex[x] >= 1) && (await page.locator(".share").count()) === 0, played.join(""));
   await page.click("#go-dex");
@@ -168,7 +176,7 @@ try {
     const p3 = await newPage(w, 700); const fb2 = await p3.evaluate(() => { const a = document.querySelector("#howto #fb2"); return a ? a.getBoundingClientRect().height : 0; }); check(`幅${w}px：遊び方の「感想を送る」も高さ44px以上`, fb2 >= 44, `${fb2}px`); await p3.click("#howto-ok");
     const homeOk = await p3.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
     await p3.click("#go-d");
-    const r = await p3.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim() || e.id) }));
+    const r = await p3.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a, input")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim() || e.id) }));
     check(`幅${w}px：横にはみ出さず、押せる所は高さ44px以上`, homeOk && !r.over && r.small.length === 0, r.small.join(","));
     await p3.click("#back"); await p3.click("#go-p"); await p3.locator(".lv button").nth(3).click();
     const r3 = await p3.evaluate(() => { const g = window.__bt, box = document.querySelector("#bd .eq").parentElement, bad = []; const keep = box.innerHTML; for (const p of g.P) { if (p.ps.length < 3) continue; box.innerHTML = g.eqHtml(p, ""); const e = box.querySelector(".eq"); if (e.scrollWidth > e.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth) bad.push(p.x); } box.innerHTML = keep; return bad; }); // 乱数で選んだ1問でなく、部品3つの問題を全部ならべて確かめる
@@ -222,6 +230,145 @@ try {
     check("保存に失敗したあと別のタブが保存しても、帳の★は高いほうを残す", await pn.evaluate((K) => { const g = window.__bt, s0 = g.load(); mem = JSON.stringify(Object.assign({}, s0, { t: 5, dex: { zz: 3 } })); localStorage.setItem(K, JSON.stringify(Object.assign({}, s0, { t: 9, dex: { zz: 1 } }))); const r = g.load(); mem = null; return r.dex.zz === 3; }, "bushu-v1"));
     check("時計が戻っても、保存の時刻 t は前より大きくなる", await pn.evaluate((K) => { const s0 = JSON.parse(localStorage.getItem(K)); const far = Date.now() + 1e9; localStorage.setItem(K, JSON.stringify(Object.assign({}, s0, { t: far }))); save(() => {}); return JSON.parse(localStorage.getItem(K)).t > far; }, "bushu-v1"));
     await pn.close(); }
+  // 5. 入力して答える（2026-11-04 satou さん「漢字系のゲームは、選択肢ではなく、入力してもらう形のほうが良いかも」）
+  { const pi = await newPage(320, 700); await pi.click("#howto-ok"); await pi.click("#go-p"); await pi.locator(".lv button").first().click();
+    let q = await curP(pi);
+    const box = await pi.evaluate(() => ["#ans", "#go"].map((s) => document.querySelector(s).getBoundingClientRect().height));
+    check("幅320px：入力欄と「決める」は高さ44px以上・横にはみ出さない", box.every((h) => h >= 44) && (await pi.evaluate(() => document.documentElement.scrollWidth <= innerWidth)), box.join(","));
+    // 変換中の Enter（isComposing・keyCode 229）では送らない
+    await pi.fill("#ans", q.x);
+    const sent = await pi.evaluate(() => { const a = document.querySelector("#ans"); const e1 = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true }); a.dispatchEvent(e1); const e2 = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }); Object.defineProperty(e2, "keyCode", { get: () => 229 }); a.dispatchEvent(e2); return !!document.querySelector(".verdict"); });
+    check("変換中の Enter（isComposing・keyCode 229）では答えを送らない", !sent && (await pi.inputValue("#ans")) === q.x);
+    await pi.press("#ans", "Enter");
+    check("変換を終えた Enter で送れる", (await pi.locator(".verdict").count()) === 1);
+    await pi.click("#next"); q = await curP(pi);
+    await type(pi, "ひらがな"); await type(pi, "カタカナ");
+    check("かな・カタカナだけは「漢字に変換して」と出し、まちがいに数えない", (await pi.textContent("#near")).includes("漢字に変換") && (await pi.evaluate(() => { const g = window.__bt, r = g.load().runs.p; return !r.cur || r.cur.tried.length === 0; })) && (await pi.textContent("#miss")) === "");
+    await type(pi, q.ps.find((c) => /\p{Script=Han}/u.test(c)));
+    check("部品の字だけを打っても、まちがいに数えない（合わせた字を打つように出す）", (await pi.textContent("#near")).includes("部品の字") && (await pi.textContent("#miss")) === "");
+    const w2 = q.d[0]; await type(pi, w2); await type(pi, " " + w2 + " ");
+    check("同じ字をもう一度打っても、まちがいは増えない", (await pi.textContent("#near")).includes("もう試しました") && (await pi.textContent("#miss")).includes("まちがい 1"));
+    await type(pi, "　" + q.x + " ");
+    check("前後の空白（全角・半角）があっても正解になる", (await pi.locator(".verdict").count()) === 1);
+    await pi.click("#next"); q = await curP(pi);
+    await type(pi, q.w.startsWith(q.x) ? q.w : q.ps.join("") + q.w); // 熟語ごと打っても（部品の字を除いた）最初の漢字を見る
+    check("熟語ごと打っても、部品の字を除いた最初の漢字を見る（後ろのよけいな字は見ない）", (await pi.locator(".verdict").count()) === 1 || !q.w.startsWith(q.x));
+    check("NFKC で全角・半角のゆれをそろえる（ｶﾀｶﾅはかな扱い・康熙部首の形もふつうの字に）", await pi.evaluate(() => { const g = window.__bt, p = g.P.find((x) => x.x === "明"); return g.pickKanji(" ｱｲ ", p).kana === true && g.pickKanji("　明　", p).ch === "明" && g.pickKanji("⼈", p).ch === "人" && g.pickKanji("明日", p).ch === "明" && g.pickKanji("日明", p).ch === "明"; }));
+    await pi.close(); }
+  { // 別解：答えとちがう字でも、同じ部品の組み合わせでできる字（組み立て表にあれば）は正解にして「別解」と出す
+    const pj = await newPage(); await pj.click("#howto-ok"); await pj.click("#go-p"); await pj.locator(".lv button").first().click();
+    const q = await curP(pj), y = "鬱";
+    await pj.evaluate(([q, y]) => { window.__bt.BP[y] = q.ps.slice().reverse().join(" "); }, [q, y]);
+    await type(pj, y);
+    check("別解（同じ部品の組み合わせのほかの字）は正解にして「別解」と出す・漢字帳はその問題の字", (await pj.locator(".verdict").count()) === 1 && (await pj.textContent(".verdict")).includes("別解") && (await pj.evaluate((x) => !!window.__bt.load().dex[x], q.x)));
+    await pj.close(); }
+  { // ヒント：読み → 熟語 → 最後に候補4つ（★が下がる）
+    const ph = await newPage(); await ph.click("#howto-ok"); await ph.click("#go-p"); await ph.locator(".lv button").nth(1).click();
+    const q = await curP(ph);
+    for (let j = 0; j < 3; j++) await ph.click("#hint");
+    const c = await ph.$$eval("#cands .tile", (a) => a.map((b) => b.dataset.ch));
+    check("3つ目のヒントで候補が4つ出る（答えを含む・問題ごとに決まった並び）・ヒントはそれ以上出ない", c.length === 4 && c.includes(q.x) && await ph.isDisabled("#hint") && JSON.stringify(c) === JSON.stringify(await ph.evaluate((id) => window.__bt.tilesOf(window.__bt.P[id], 4), q.id)));
+    const wr = c.find((x) => x !== q.x); await ph.click(`#cands .tile[data-ch="${wr}"]`);
+    check("候補でまちがえても、その字は押せなくなり下に残る", await ph.isDisabled(`#cands .tile[data-ch="${wr}"]`) && await triedHas(ph, wr));
+    await ph.click(`#cands .tile[data-ch="${q.x}"]`);
+    check("候補を使って正解すると★1（ヒント3）", (await ph.locator(".verdict .stars .off").textContent()).length === 2 && (await ph.textContent(".verdict")).includes("ヒント3回"));
+    check("まちがいの札（候補）は、組み立てが分かれば部品を持つと出し（○）、全部持つ札（淡＝氵＋火＋火 と 炎 など）も別解にはならない", await ph.evaluate(() => { const g = window.__bt; let bad = 0, known = 0; for (const p of g.P) p.d.forEach((y, j) => { const n = g.hitsOf(p, y).filter(Boolean).length; if (g.isAlt(p, y)) bad++; if (p.dl[j] && p.dl[j].split(" + ").some((c) => p.ps.includes(c))) { known++; if (n < 1) bad++; } }); return bad === 0 && known > 1000; }));
+    check("○の数は奥の部品も1つの分け方の中で数える：木＋木（林）に 森（木＋林）と打つと○が2つ", await ph.evaluate(() => { const g = window.__bt, p = { ps: ["木", "木"], d: [], dl: [] }; return g.hitsOf(p, "森").filter(Boolean).length === 2 && g.hitsOf(p, "林").filter(Boolean).length === 2 && g.hitsOf(p, "本").filter(Boolean).length <= 1; }));
+    check("実績の印が無い古い記録で、結果を見る前に閉じた回を開き直しても、前から取れていた実績を新しく出さない", await (async () => { const pg = await newPage(); await pg.evaluate((k) => { const g = window.__bt, d = g.todayKey(); localStorage.setItem(k, JSON.stringify({ v: 1, tut: true, days: { "2026-11-01": { m: [0, 0, 0, 0, 0] } }, hdays: {}, dex: { 明: 3 }, kofi: {}, runs: { d: { mode: "d", date: d, list: g.dailyList(d), res: [0, 1, 2, 3, 4].map(() => ({ m: 0, h: 0 })) } } })); }, KEY); await pg.reload(); await pg.waitForTimeout(300); const t = await pg.$$eval(".achnew", (a) => a.map((e) => e.textContent).join("|")); await pg.close(); return !t.includes("はじめの一字"); })());
+    check("○の数（部品をいくつ持つか）：淡は 炎（火＋火）の部品を2つ・秋は1つ（同じ部品が2つの問題）", await ph.evaluate(() => { const g = window.__bt, p = { ps: ["火", "火"], d: [], dl: [] }; return g.hitsOf(p, "淡").filter(Boolean).length === 2 && g.hitsOf(p, "秋").filter(Boolean).length === 1; }));
+    await ph.close(); }
+  // 6. やりこみ：実績・記録（カレンダー）・取りこぼした日をあとから
+  { // 実績の数え方（いまの記録から毎回数える）
+    const pa = await newPage(320, 700);
+    const r = await pa.evaluate(() => { const g = window.__bt, s = g.load(); const xs = [...new Set(g.P.map((p) => p.x))].slice(0, 60); s.dex = Object.fromEntries(xs.map((x, i) => [x, i < 10 ? 3 : 1])); const z = { m: [0, 0, 0, 0, 0], h: [0, 0, 0, 0, 0] }; s.days = { "2026-11-04": z, "2026-11-05": { m: [1, 0, 2, 0, 0], h: [] }, "2026-11-07": { m: [0, 1, 0, 0, 0], h: [] } }; s.hdays = { "2026-11-04": { m: [0, 1, 0, 0, 0], h: [] } }; s.late = { "2026-11-06": { m: [0, 0, 1, 0, 0], h: [] } }; const got = g.achGot(s), pr = (id) => g.achProg(s, g.ACH.find((a) => a[0] === id)); return { n: g.ACH.length, kinds: [...new Set(g.ACH.map((a) => a[3]))].join(), got, d300: pr("dex300"), week: pr("week"), s3: pr("s3") }; });
+    check("実績は13個で、腕前・集める・続けるを混ぜる", r.n === 13 && r.kinds === "腕前,集める,続ける", r.kinds);
+    check("実績はいまの記録から数える（取れたもの・進み具合）", ["first", "perfect", "hard1", "dex50", "late1", "days3"].every((id) => r.got.includes(id)) && !r.got.includes("hardp") && !r.got.includes("dex300") && r.d300.join() === "60,300" && r.week.join() === "4,7" && r.s3.join() === "10,50", JSON.stringify(r));
+    await pa.evaluate((K) => { const g = window.__bt, s = g.load(); s.tut = true; s.dex = Object.fromEntries([...new Set(g.P.map((p) => p.x))].slice(0, 60).map((x) => [x, 1])); localStorage.setItem(K, JSON.stringify(s)); }, KEY);
+    await pa.reload(); await pa.click("#go-ach");
+    const v = await pa.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, n: document.querySelectorAll(".ach").length, pg: document.querySelector('.ach[data-id="dex300"] .pg').textContent, small: [...document.querySelectorAll("button, a")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim() || e.id) }));
+    check("実績の画面：幅320pxで崩れず、まだの実績は条件と「60/300」のような進み具合", !v.over && v.n === 13 && v.pg.includes("60/300") && v.small.length === 0, JSON.stringify(v));
+    await pa.close(); }
+  { // 実績の前から遊んでいた人には、取れている分をまとめて出さない
+    const po = await newPage();
+    await po.evaluate((K) => localStorage.setItem(K, JSON.stringify({ v: 1, tut: true, days: {}, hdays: {}, dex: { 明: 3 }, kofi: {}, runs: {} })), KEY); await po.reload();
+    check("前からの記録で取れている実績は、ホームを開いたとき見せた印にして結果でまとめて出さない", await po.evaluate(() => { const s = window.__bt.load(); return !!s.ach && s.ach.first === 1; }));
+    await po.close(); }
+  { // 統合の前に両方を fresh() で補う（片方にしか無いキーを失わない。2026-11-04 CodeRabbit が前のゲームで指摘）
+    const pl = await newPage();
+    check("保存に失敗したあとの統合でも、片方にしか無い実績の印・あとから遊んだ日を失わない", await pl.evaluate((K) => { const g = window.__bt, base = { v: 1, days: {}, hdays: {}, dex: {}, runs: {}, kofi: {} }; mem = JSON.stringify(Object.assign({}, base, { t: 9, ach: { first: 1 } })); localStorage.setItem(K, JSON.stringify(Object.assign({}, base, { t: 5, late: { "2026-11-04": { m: [0, 0, 0, 0, 0] } } }))); const r1 = g.load(); mem = JSON.stringify(Object.assign({}, base, { t: 9, late: { "2026-11-04": { m: [0, 0, 0, 0, 0] } } })); localStorage.setItem(K, JSON.stringify(Object.assign({}, base, { t: 5, ach: { first: 1 } }))); const r2 = g.load(); mem = null; return r1.ach.first === 1 && !!r1.late["2026-11-04"] && r2.ach.first === 1 && !!r2.late["2026-11-04"]; }, KEY));
+    await pl.close(); }
+  { // 取りこぼした日の選び方（何百日分）：今日より前の7日・EPOCH より前は無し・遊んだ日は出さない。問題はその日の今日の5問と同じ
+    const pm = await newPage();
+    const bad = await pm.evaluate(() => { const g = window.__bt, add = (k, n) => new Date(Date.parse(k) + n * 864e5).toISOString().slice(0, 10), out = []; const s = { days: {}, late: {} }; for (let n = 0; n < 600; n++) { const k = add("2026-11-04", n); if ((n * 7) % 3 === 0) s.days[k] = { m: [0, 0, 0, 0, 0] }; else if (n % 5 === 0) s.late[k] = { m: [0, 0, 0, 0, 0] }; } for (let n = 0; n < 600; n++) { const k = add("2026-11-04", n), m = g.missedDays(s, k), want = []; for (let i = 1; i <= 7; i++) { const d = add(k, -i); if (d >= "2026-11-04" && !s.days[d] && !s.late[d]) want.push(d); } if (JSON.stringify(m) !== JSON.stringify(want)) out.push(k); } return out; });
+    check("取りこぼした日は、遊んでいない過去7日だけ（はじめの日より前は無い。600日分）", bad.length === 0, bad.slice(0, 3).join(","));
+    await pm.close(); }
+  { // あとから遊ぶ：時計を 2026-11-20 にして、A日を途中まで→B日を始める→A日に戻ると続きから・終えても今日の記録・連続・Ko-fi に入れない
+    const pz = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    pz.on("pageerror", (e) => errors.push(e.stack));
+    await pz.addInitScript(() => { const RD = Date, off = Date.parse("2026-11-20T03:00:00Z") - RD.now(); window.Date = class extends RD { constructor(...a) { if (a.length) super(...a); else super(RD.now() + off); } static now() { return RD.now() + off; } }; });
+    await pz.goto(url); await pz.evaluate((K) => localStorage.setItem(K, JSON.stringify({ v: 1, tut: true, days: { "2026-11-19": { m: [0, 0, 0, 0, 0], h: [0, 0, 0, 0, 0] } }, hdays: {}, dex: {}, kofi: {}, runs: {} })), KEY); await pz.reload();
+    const miss = await pz.evaluate(() => window.__bt.missedDays(window.__bt.load()));
+    check("ホームに取りこぼした日のボタン（遊んだ日は除く7日前まで）", (await pz.textContent("#go-late")).includes("6日") && miss.join() === "2026-11-18,2026-11-17,2026-11-16,2026-11-15,2026-11-14,2026-11-13", miss.join());
+    const A = "2026-11-15", B = "2026-11-17";
+    await pz.click("#go-late"); await pz.click(`.misses button[data-d="${A}"]`);
+    const ra = await pz.evaluate((A) => { const g = window.__bt, s = g.load(); return { list: JSON.stringify(s.runs[g.aKey(A)].list), want: JSON.stringify(g.dailyList(A)), mode: g.mode() }; }, A);
+    check("あとから遊ぶ問題は、その日の今日の5問と同じ（日付の種）", ra.list === ra.want && ra.mode === "a:" + A && (await pz.textContent("header")).includes("11/15"));
+    let q = await curP(pz);
+    await type(pz, q.x); await pz.click("#next");
+    q = await curP(pz); const wA = q.d[0]; await type(pz, wA);
+    await pz.click("#back"); await pz.click("#go-cal"); await pz.click(`.misses button[data-d="${B}"]`);
+    const both = await pz.evaluate(([A, B]) => { const s = window.__bt.load(); return { a: s.runs["a:" + A], b: s.runs["a:" + B] }; }, [A, B]);
+    check("別の日を始めても、前の日の途中経過は残る（runs を日付ごとに分ける）", both.a && both.a.res.length === 1 && both.a.cur && both.a.cur.tried.length === 1 && both.b && both.b.res.length === 0);
+    await pz.click("#back"); await pz.click("#go-cal");
+    check("記録で途中の日は「続き」と出る", (await pz.textContent(`.misses button[data-d="${A}"]`)).includes("続き"));
+    await pz.click(`.misses button[data-d="${A}"]`);
+    check("前の日に戻ると続きから（2問目・まちがえた字もそのまま）", (await pz.textContent("header")).includes("2/5") && await triedHas(pz, wA));
+    for (let j = 0; j < 4; j++) { q = await curP(pz); await type(pz, q.x); await pz.click("#next"); }
+    const fin = await pz.evaluate((A) => { const g = window.__bt, s = g.load(); return { late: !!s.late[A], day: !!s.days[A], days: Object.keys(s.days).length, st: g.streak(s.days), runB: !!s.runs["a:2026-11-17"], dex: Object.keys(s.dex).length, miss: g.missedDays(s) }; }, A);
+    check("あとから終えた日は late に入り、今日の記録（days）・連続の日を増やさない。帳には載る", fin.late && !fin.day && fin.days === 1 && fin.st === 1 && fin.dex === 5 && !fin.miss.includes(A) && fin.runB, JSON.stringify(fin));
+    check("あとからの結果：Ko-fi の1行・上級のボタンは出さず、シェアに「あとから」・実績「取りこぼし回収」", (await pz.locator(".kofi").count()) === 0 && (await pz.locator("#go-h").count()) === 0 && (await pz.textContent(".share")).includes("（あとから）") && (await pz.textContent(".achnew")).includes("取りこぼし回収"));
+    await pz.click("#go-cal");
+    const cal = await pz.evaluate((A) => ({ late: document.querySelector(`.cal [data-k="${A}"]`)?.className || "", d19: document.querySelector('.cal [data-k="2026-11-19"]')?.className || "", streak: document.querySelector("#cal-streak")?.textContent || "", over: document.documentElement.scrollWidth > innerWidth }), A);
+    check("カレンダー：その日にといた日は★の濃さ、あとからの日は別の印（点線）、連続は1以上のときだけ", /\blate\b/.test(cal.late) && /\bd3\b/.test(cal.d19) && cal.streak.includes("連続1日") && !cal.over, JSON.stringify(cal));
+    const firstMonth = await pz.isDisabled("#cal-prev");
+    await pz.evaluate(() => window.__bt.calView("2026-12")); await pz.click("#cal-prev");
+    check("カレンダー：前の月へ戻れる（はじめの月 2026年11月より前へは行かない）", firstMonth && (await pz.textContent("#cal-ym")) === "2026年11月" && (await pz.locator('.cal [data-k="2026-11-15"]').count()) === 1);
+    { const before = await pz.evaluate(() => JSON.stringify(window.__bt.load().late)); await pz.evaluate((A) => window.__bt.startRun("a", A), A);
+      check("古いタブから終えた日を押しても、記録を読み直して始めずホームへ戻す", (await pz.evaluate((A) => !window.__bt.load().runs["a:" + A], A)) && (await pz.locator("#go-d").count()) === 1 && before === (await pz.evaluate(() => JSON.stringify(window.__bt.load().late)))); }
+    await pz.close(); }
+  { // 連続が0のときは出さない（休んだ日を責めない）・カレンダーの上級の印と★の濃さ
+    const pk = await newPage();
+    await pk.evaluate((K) => localStorage.setItem(K, JSON.stringify({ v: 1, tut: true, days: { "2026-11-04": { m: [0, 1, 2, 3, 0], h: [] } }, hdays: { "2026-11-04": { m: [0, 0, 0, 0, 0], h: [] } }, dex: {}, kofi: {}, runs: {} })), KEY); await pk.reload();
+    const st = await pk.evaluate(() => window.__bt.streak(window.__bt.load().days));
+    check("連続の日は1以上のときだけ出す（0は出さない）", st >= 1 ? (await pk.textContent(".rank")).includes("連続") : !(await pk.textContent(".rank")).includes("連続") && !(await pk.textContent(".stats")).includes("連続"));
+    await pk.evaluate(() => window.__bt.calView("2026-11"));
+    const c = await pk.getAttribute('.cal [data-k="2026-11-04"]', "class");
+    check("カレンダー：★10の日は薄い朱（d1）・上級の日は印（hd）・はじめの月より前には戻れない", /\bd1\b/.test(c) && /\bhd\b/.test(c) && (await pk.isDisabled("#cal-prev")), c);
+    await pk.close(); }
+  for (const w of [320, 390]) { // 実績・記録・結果の画面も、はみ出さず押せる所は44px以上
+    const pw = await newPage(w, 700);
+    await pw.evaluate((K) => { const g = window.__bt, k = g.todayKey(); localStorage.setItem(K, JSON.stringify({ v: 1, tut: true, days: { [k]: { m: [0, 1, 3, 0, 2], h: [0, 1, 1, 0, 0] } }, hdays: {}, dex: {}, kofi: {}, runs: {}, late: { "2026-11-04": { m: [0, 0, 0, 0, 0], h: [0, 0, 0, 0, 0] } } })); }, KEY);
+    await pw.reload();
+    const bad = [];
+    for (const go of ["#go-ach", "#go-cal", "#go-d"]) { await pw.click("#back").catch(() => {}); await pw.click(go); const r = await pw.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim() || e.id) })); if (r.over || r.small.length) bad.push(go + ":" + r.small.join("/")); }
+    check(`幅${w}px：実績・記録・結果の画面もはみ出さず、押せる所は44px以上`, bad.length === 0, bad.join(" "));
+    await pw.close(); }
+  { // キーボードで選んだボタンに枠が出る（all:unset のカレンダーのます目でも消えない。2026-11-04 CodeRabbit の指摘）
+    const pf = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await pf.goto(url); await pf.evaluate(() => localStorage.clear()); await pf.reload();
+    await pf.click("#howto-ok").catch(() => {});
+    const bad = [];
+    for (const open of [null, "#go-cal"]) {
+      if (open) await pf.click(open);
+      await pf.keyboard.press("Shift");
+      bad.push(...await pf.evaluate(() => {
+        const cal = document.querySelector(".cal");
+        if (cal) { const b = document.createElement("button"); b.className = (cal.querySelector("button") || cal.lastElementChild).className + " miss"; b.textContent = "1"; cal.append(b); }
+        return [...document.querySelectorAll("button:not([disabled]),a[href]")].filter((b) => b.checkVisibility()).filter((b) => { b.focus(); const cs = getComputedStyle(b); return !b.matches(":focus-visible") || cs.outlineStyle === "none" || parseFloat(cs.outlineWidth) < 2; }).map((b) => b.className || b.id || b.tagName);
+      }));
+    }
+    check("キーボードで選んだボタン（カレンダーのあとから遊ぶ日も）に枠が出る", bad.length === 0, bad.join(","));
+    await pf.close(); }
 } catch (e) { // 途中で止まっても、ここまでの結果とレポートは書き出す
   check("QA の操作が最後まで完了する", false, e.message.split("\n")[0]);
 } finally {
