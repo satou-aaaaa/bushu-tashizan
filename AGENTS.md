@@ -39,6 +39,7 @@ node qa/run.mjs   # 答えが1つか（組み立ての表で全部の常用漢�
 - キーボードで選んだときの枠（`:focus-visible`）は style のいちばん最後に `:is(.icon,button,a):focus-visible{…!important}` で書く（`all:unset` のボタンでも消えない。2026-11-04 CodeRabbit がほかのゲームで指摘。QA が見る）。あとから遊ぶ日は、始める前に記録を読み直し、もう終えていたら知らせてホームへ戻す。
 - 押せる所は高さ44px以上、幅320pxでも部品3つの式は1行に収める（QA が見る）。機能を足す・直すたびに `qa/run.mjs` に検査を足す。乱数で組む部分は何年分も作って確かめる（shared-workflows `incidents/2026-10-31-roppo-empty-village.md`）。
 - PWA（`manifest.webmanifest`・`sw.js`・`icon-*.png`）：画面のファイルを足したら `sw.js` の `SHELL` にも足し、中身を大きく変えたら `CACHE` の版を上げる。アイコンは `node tools/make-icons.cjs`、SNS 用の絵 `og.png` は `node tools/make-og.cjs`（今日の答えを入れない）。
+- 引き継ぎコード（別の端末へ記録を移す）：`transfer.js`・`qa/transfer-check.mjs` は shared-workflows の `template/` の写し（ここで直さない。直すときはひな形を直して配り、`引き継ぎの版` を上げる）。`index.html` の script の `data-keys` は記録のキーだけを書く。記録の形を変えたら `qa/run.mjs` の `checkTransfer` の `sample` も合わせる。sw.js の `SHELL` から `./transfer.js` を外さない（shared-workflows `routines/game-dev.md`「引き継ぎコード」）。
 - 公開リポジトリなので、個人情報・鍵を入れない。
 
 ## 公開
