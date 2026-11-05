@@ -1,0 +1,55 @@
+{
+  "screens": [
+    {
+      "name": "今日の5問",
+      "click": [
+        "#go-d"
+      ]
+    },
+    {
+      "name": "ヒントと候補",
+      "click": [
+        "#go-d",
+        "#hint",
+        "#hint",
+        "#hint"
+      ]
+    },
+    {
+      "name": "とことん",
+      "click": [
+        "#go-e"
+      ]
+    },
+    {
+      "name": "練習",
+      "click": [
+        "#go-p"
+      ]
+    },
+    {
+      "name": "漢字帳",
+      "click": [
+        "#go-dex"
+      ]
+    },
+    {
+      "name": "実績",
+      "click": [
+        "#go-ach"
+      ]
+    },
+    {
+      "name": "記録",
+      "click": [
+        "#go-cal"
+      ]
+    }
+  ],
+  "allowWords": [
+    {
+      "word": "嫁",
+      "reason": "常用漢字「嫁」そのもの（問題の答えの字・読み「よめ」・熟語「花嫁」と、組み立て表 parts.js）。呼び方として使ってはいない。data.js・parts.js は道具で作るもので、字を外すと過去の日の問題が変わる"
+    }
+  ]
+}
