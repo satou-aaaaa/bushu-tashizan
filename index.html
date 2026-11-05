@@ -387,7 +387,7 @@ const P = window.BT_DATA.P.map((a, i) => ({ id: i, x: a[0], t: a[1], ps: a[2], d
 const POOL = [0, 1, 2, 3].map((t) => P.filter((p) => p.t === t).map((p) => p.id));
 // 性別に寄った言葉（gender-ng.js）を、答え・部品・札・札の組み立て・読み・熟語のどこかに持つ問題。2026-11-07（CUTOFF）からの今日の5問・上級と、とことん・練習では選ばない（過去の日の問題はそのまま。satou さん 2026-11-06）
 const CUTOFF = "2026-11-07", NG_W = window.BT_GENDER_NG || [];
-const ngText = (s) => NG_W.some((w) => (/^[A-Za-z]+$/.test(w) ? new RegExp("(?<![A-Za-z])" + w + "(?![A-Za-z])").test(s) : s.includes(w))); // 英字だけの言葉は英字の続きでないときだけ
+const ngText = (s) => NG_W.some((w) => (/^[A-Za-z]+$/.test(w) ? new RegExp("(^|[^A-Za-z])" + w + "(?![A-Za-z])").test(s) : s.includes(w))); // 英字だけの言葉は英字の続きでないときだけ（後読みは Safari 16.3 までで動かないので使わない）
 const NG = new Set(P.filter((p) => ngText([p.x, ...p.ps, ...p.d, ...p.dl, p.on, p.kun, p.w, p.wr].join("\n"))).map((p) => p.id));
 const POOL_OK = POOL.map((pool) => pool.filter((id) => !NG.has(id)));
 

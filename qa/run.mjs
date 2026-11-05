@@ -1,7 +1,7 @@
 // 部首たし算の検査。問題（答えが1つを組み立ての表で確かめ直す・まちがいの札）・入力の組み立て表・5問の組み方（何年分）・通しで遊ぶ・入力して答える・ヒントと候補・続きから・上級・漢字帳・実績・カレンダー・あとから・記録・スマホ幅・PWA を確かめる。
 // 使い方: node qa/run.mjs   失敗があれば終了コード 1。結果は qa-report/report.md。
 import { chromium } from "playwright";
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
@@ -11,6 +11,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const url = pathToFileURL(path.join(root, "index.html")).href; // # などを含むフォルダ名でも開ける
 const results = [];
 const check = (name, ok, detail = "") => results.push({ name, ok: !!ok, detail });
+// 画面のコードに正規表現の後読み (?<! (?<= を書かない（Safari 16.3 まで例外で止まる。2026-11-06 CodeRabbit）
+{ const lb = ["index.html", ...readdirSync(root).filter((f) => f.endsWith(".js"))].filter((f) => /\(\?<[!=]/.test(readFileSync(path.join(root, f), "utf8"))); check("画面のコードに正規表現の後読みが無い（古い Safari で止まらない）", lb.length === 0, lb.join(" ")); }
 
 // 1. 問題（ブラウザを使わない）
 const sb = { window: {} }; vm.runInNewContext(readFileSync(path.join(root, "data.js"), "utf8"), sb);
