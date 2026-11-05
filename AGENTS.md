@@ -40,6 +40,7 @@ node qa/run.mjs   # 答えが1つか（組み立ての表で全部の常用漢�
 - 押せる所は高さ44px以上、幅320pxでも部品3つの式は1行に収める（QA が見る）。機能を足す・直すたびに `qa/run.mjs` に検査を足す。乱数で組む部分は何年分も作って確かめる（shared-workflows `incidents/2026-10-31-roppo-empty-village.md`）。
 - PWA（`manifest.webmanifest`・`sw.js`・`icon-*.png`）：画面のファイルを足したら `sw.js` の `SHELL` にも足し、中身を大きく変えたら `CACHE` の版を上げる。アイコンは `node tools/make-icons.cjs`、SNS 用の絵 `og.png` は `node tools/make-og.cjs`（今日の答えを入れない）。
 - 引き継ぎコード（別の端末へ記録を移す）：`transfer.js`・`qa/transfer-check.mjs` は shared-workflows の `template/` の写し（ここで直さない。直すときはひな形を直して配り、`引き継ぎの版` を上げる）。`index.html` の script の `data-keys` は記録のキーだけを書く。記録の形を変えたら `qa/run.mjs` の `checkTransfer` の `sample` も合わせる。sw.js の `SHELL` から `./transfer.js` を外さない（shared-workflows `routines/game-dev.md`「引き継ぎコード」）。
+- 見やすさ：`</head>` の前の見やすさの設定（`<!-- a11y:begin -->`〜`end`）は shared-workflows `template/a11y/a11y.html` の写しで、ここでは直さない。`qa/a11y.mjs` も `template/qa/a11y.mjs` の写し（画面の足し方・許しは `qa/a11y.json` に理由つき）。色だけで分けない（取れない星は ☆、進み具合の点は形（いま＝高い・まだ＝中が空）、漢字帳は右下に「★3」「★2」、実績は「✓ 取った」、記録の選べない日は点線の枠。「色の見分けを助ける」では部品の○を緑から青に替えて枠を太く）・コントラスト 4.5:1・知らせは `#live`（role=status）にまちがい・ヒント・正解を文字で・「動きを減らす」で振動も止める・決めつけの言葉を使わない（shared-workflows `routines/game-dev.md`「だれでも遊べるように」）。
 - 公開リポジトリなので、個人情報・鍵を入れない。
 
 ## 公開

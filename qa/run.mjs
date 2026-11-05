@@ -398,6 +398,38 @@ try {
     }
     check("キーボードで選んだボタン（カレンダーのあとから遊ぶ日も）に枠が出る", bad.length === 0, bad.join(","));
     await pf.close(); }
+  { // 色だけで分けない（shared-workflows routines/game-dev.md A1・WCAG 1.4.1）・知らせは文字で（A7）・動きを減らすで振動も止める（A8）
+    const pc = await newPage(); await pc.click("#howto-ok");
+    await pc.evaluate((K) => { const g = window.__bt, s = g.load(), k = g.todayKey(), xs = [...new Set(g.P.map((p) => p.x))]; s.dex = { [xs[0]]: 3, [xs[1]]: 2, [xs[2]]: 1 }; s.days = { [k]: { m: [0, 0, 0, 0, 0], h: [0, 0, 0, 0, 0] } }; localStorage.setItem(K, JSON.stringify(s)); }, KEY);
+    await pc.reload(); await pc.click("#go-dex");
+    const dx = await pc.evaluate(() => [...document.querySelectorAll(".dex button")].map((b) => [b.className, getComputedStyle(b, "::after").content, b.getAttribute("aria-label")]));
+    check("漢字帳：★3・★2の字は色に加えて「★3」「★2」の字と読み上げの名前（星Nつ）でも分かる", dx.length === 3 && dx.every(([c, a, l]) => l.includes(`星${c.slice(1)}つ`) && (c === "s1" ? a === "none" : a.includes(`★${c.slice(1)}`))), JSON.stringify(dx));
+    await pc.click("#back"); await pc.click("#go-ach");
+    const ac = await pc.evaluate(() => [...document.querySelectorAll(".ach")].map((e) => [e.classList.contains("got"), e.textContent.includes("✓ 取った"), !!e.querySelector(".pg")]));
+    check("実績：取った実績は色に加えて「✓ 取った」、まだのものは進み具合（いま/目標）", ac.some((x) => x[0]) && ac.every(([g, t, pg]) => (g ? t && !pg : !t && pg)), JSON.stringify(ac));
+    await pc.click("#back"); await pc.click("#go-cal");
+    const out = await pc.evaluate(() => [...document.querySelectorAll(".cal .c.out")].map((e) => +getComputedStyle(e).opacity));
+    check("記録：選べない日は薄くせず（字が読める）、点線の枠で分ける", out.length > 0 && out.every((o) => o === 1), JSON.stringify(out.slice(0, 3)));
+    await pc.close();
+    const pv = await newPage(); await pv.click("#howto-ok");
+    await pv.evaluate(() => { window.__vib = 0; navigator.vibrate = () => { window.__vib++; return true; }; });
+    await pv.click("#go-p"); await pv.locator(".lv button").first().click();
+    const q = await curP(pv);
+    const dots = await pv.evaluate(() => [...document.querySelectorAll(".dots i")].map((i) => { const c = getComputedStyle(i); return [i.className, Math.round(i.getBoundingClientRect().height), c.backgroundColor === "rgba(0, 0, 0, 0)"]; }));
+    check("進み具合の点は色に加えて形で分かる（いま＝高い・まだ＝中が空・済み＝塗り）", dots[0][0] === "on" && dots.slice(1).every(([c, h, empty]) => c === "" && h < dots[0][1] && empty), JSON.stringify(dots));
+    check("知らせの場所（#live、role=status）があり、問題の式に読み上げの印（data-a11y-say）", (await pv.getAttribute("#live", "role")) === "status" && (await pv.locator("#bd .eq[data-a11y-say]").count()) === 1 && (await pv.locator(".hero [data-a11y-say]").count()) === 0);
+    await type(pv, q.d[0]); await pv.waitForTimeout(100);
+    check("まちがえると「まちがい」と字の組み立てを #live に文字で知らせる・振動する（ふだん）", (await pv.textContent("#live")).startsWith("まちがい") && (await pv.evaluate(() => window.__vib)) === 1, await pv.textContent("#live"));
+    await pv.click("#hint"); await pv.waitForTimeout(100);
+    check("ヒントも #live に文字で知らせる", (await pv.textContent("#live")).includes("読み"));
+    await type(pv, q.x); await pv.waitForTimeout(100);
+    check("正解も #live に文字で知らせる（字・星の数）・取れない星は☆", (await pv.textContent("#live")).startsWith("正解") && (await pv.textContent("#live")).includes("星") && /^☆+$/.test(await pv.textContent(".verdict .stars .off")), await pv.textContent("#live"));
+    await pv.evaluate(() => { localStorage.setItem("a11y-v1", JSON.stringify({ calm: true })); }); await pv.reload();
+    await pv.evaluate(() => { window.__vib = 0; navigator.vibrate = () => { window.__vib++; return true; }; });
+    await pv.click("#back").catch(() => {}); await pv.click("#go-p"); await pv.locator(".lv button").first().click();
+    const q2 = await curP(pv); await type(pv, q2.d[0]); await type(pv, q2.x);
+    check("「動きを減らす」では振動しない", (await pv.evaluate(() => window.__vib)) === 0 && (await pv.locator(".verdict").count()) === 1);
+    await pv.close(); }
 } catch (e) { // 途中で止まっても、ここまでの結果とレポートは書き出す
   check("QA の操作が最後まで完了する", false, e.message.split("\n")[0]);
 } finally {
@@ -407,6 +439,12 @@ try {
   await browser.close();
 }
 check("画面のエラーが無い", errors.length === 0, errors.slice(0, 3).join(" | "));
+
+{ // 見やすさ・読みやすさ・偏り（shared-workflows template/qa/a11y.mjs の写し。routines/game-dev.md「だれでも遊べるように」）
+  const { spawnSync } = await import("node:child_process");
+  const a = spawnSync(process.execPath, [path.join(root, "qa", "a11y.mjs")], { encoding: "utf8", env: process.env });
+  check("見やすさ・読みやすさの検査（qa/a11y.mjs。中身は qa-report/a11y.md）", a.status === 0, (a.stdout.match(/^- ❌.*$/gm) || []).join(" / ") || (a.status ? a.stderr.slice(-300) : ""));
+}
 
 const ng = results.filter((r) => !r.ok);
 const md = `# 部首たし算 QA\n\n${results.map((r) => `- ${r.ok ? "✅" : "❌"} ${r.name}${r.detail ? `（${r.detail}）` : ""}`).join("\n")}\n\n${ng.length ? `❌ ${ng.length}件` : `✅ ${results.length}項目すべて通過`}\n`;
