@@ -13,6 +13,7 @@
 - 3つの部品の問題は、2つに分かれた片方をもう一度2つに分ける（小学校で習う字は分けない）か、はじめから3つに分かれる字。
 - まちがいの札は、部品を1つだけ持つ常用漢字（部品を全部持つ字は入れない）。
 - つらい言葉（死・殺など）の字は使わない。
+- 性別に寄った言葉（gender-ng.js。shared-workflows template/qa/a11y.mjs の WORDS）は、答え・部品・まちがいの札・熟語のどこにも入れない。
 """
 import sqlite3, collections, json, random, sys, os, re
 import xml.etree.ElementTree as ET
@@ -25,6 +26,11 @@ info = {l: (s, g) for l, s, g in c.execute("select literal, stroke_count, grade 
 JOYO = {k for k, (s, g) in info.items() if g in ("1", "2", "3", "4", "5", "6", "8")}
 LOW = {k for k in JOYO if info[k][1] != "8"}
 NG = set("死殺葬屍姦淫娼尿糞呪遺棺骸刑獄墓弔喪病癌毒虐暴拷凶犯罪賊奴隷")
+# 性別に寄った言葉（gender-ng.js と同じ一覧）。1字の言葉（嫁など）は字ごと、2字以上は熟語に入れない
+GNG = json.loads(re.search(r"var NG = (\[.*?\]);", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "gender-ng.js"), encoding="utf8").read()).group(1))
+GNG1 = {w for w in GNG if len(w) == 1}
+gng = lambda s: any((re.search(r"(?<![A-Za-z])OL(?![A-Za-z])", s) if w == "OL" else w in s) for w in GNG)
+NG |= GNG1
 RN = {"氵": "さんずい", "亻": "にんべん", "扌": "てへん", "艹": "くさかんむり", "辶": "しんにょう", "刂": "りっとう", "灬": "れんが", "忄": "りっしんべん",
       "宀": "うかんむり", "冖": "わかんむり", "疒": "やまいだれ", "广": "まだれ", "尸": "しかばね", "彳": "ぎょうにんべん", "礻": "しめすへん", "衤": "ころもへん",
       "犭": "けものへん", "阝": "こざとへん・おおざと", "亠": "なべぶた", "冫": "にすい", "囗": "くにがまえ", "儿": "ひとあし", "厂": "がんだれ", "勹": "つつみがまえ",
@@ -119,7 +125,7 @@ for seq, t in c.execute("select idseq, text from Kana order by ID"):
     kana[seq].append(t)
 best = {}
 for kid, t, seq in rows:
-    if len(t) != 2 or not (pri[kid] & {"ichi1", "news1"}) or not all(ch in JOYO for ch in t) or set(t) & NG or t[0] == t[1] or not kana[seq] or not re.fullmatch("[ぁ-ゖー]+", kana[seq][0]):
+    if len(t) != 2 or not (pri[kid] & {"ichi1", "news1"}) or not all(ch in JOYO for ch in t) or set(t) & NG or gng(t) or t[0] == t[1] or not kana[seq] or not re.fullmatch("[ぁ-ゖー]+", kana[seq][0]):
         continue
     nf = [int(p[2:]) for p in pri[kid] if p.startswith("nf")]
     sc = (0 if "ichi1" in pri[kid] else 1, min(nf) if nf else 30, t)
@@ -145,7 +151,8 @@ def item(k, parts, tier):
     ds = decoys(k, parts)
     if len(ds) < 5 or not ex:
         return None
-    return [k, tier, list(parts), ds, [" + ".join(label[d]) if d in label and all(x in JOYO or x in RN for x in label[d]) else "" for d in ds], on, kun, ex[1], ex[2]]
+    it = [k, tier, list(parts), ds, [" + ".join(label[d]) if d in label and all(x in JOYO or x in RN for x in label[d]) else "" for d in ds], on, kun, ex[1], ex[2]]
+    return None if gng(json.dumps(it, ensure_ascii=False)) else it
 
 out = []
 for k in sorted(Q2):

@@ -57,7 +57,7 @@ check("画面にお笑いの言葉を入れない（本物っぽく）", !/お�
   check("感想フォームは名前・メールを聞かない（楽しさ・よかった所・直してほしい所だけ）", /id: fun/.test(fy) && /id: good/.test(fy) && /id: fix/.test(fy) && !/id: (name|email|mail)/.test(fy) && /labels: \["感想"\]/.test(fy)); }
 { const sw = readFileSync(path.join(root, "sw.js"), "utf8"), mf = JSON.parse(readFileSync(path.join(root, "manifest.webmanifest"), "utf8"));
   const shell = JSON.parse(sw.match(/SHELL = (\[[^\]]+\])/)[1].replace(/'/g, '"'));
-  const need = ["./index.html", "./transfer.js", "./data.js", "./parts.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+  const need = ["./index.html", "./transfer.js", "./data.js", "./parts.js", "./gender-ng.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
   check("PWA：ネットの返事の保存は、イベントの中で waitUntil に預ける（遅れて届いた新しい版も保存できる）", /e\.waitUntil\(Promise\.race\(\[net\.then[^\n]*Promise\.race\(\[caches\.open[^\n]*wait\(15000\)\]\); \}, \(\) => \{\}\)\.catch\(\(\) => \{\}\), wait\(60000\)\]\)\);/.test(sw) && !/\.then\([^\n]*e\.waitUntil/.test(sw));
   check("PWA：sw.js は画面のファイルを全部保存し、外へ何も送らない", need.every((f) => shell.includes(f)) && !/https?:\/\//.test(sw.replace(/^\/\/.*$/gm, "")));
   check("PWA：manifest にアイコン2つと名前がある", mf.name === "部首たし算" && mf.icons.length >= 2 && mf.start_url === "./"); }
@@ -96,8 +96,15 @@ try {
       const xs = new Set(d.map((id) => g.P[id].x)); if (h.some((id) => xs.has(g.P[id].x))) out.hardHit++;
       d.forEach((id) => seen[g.P[id].t].push(id));
     }
-    // 1周（その難しさの問題数）のうちは同じ問題が出ない
-    [0, 1, 2].forEach((t) => { const L = g.POOL[t].length; for (let i = 0; i + L <= seen[t].length; i += L) if (new Set(seen[t].slice(i, i + L)).size !== L) out.dup++; });
+    // 1周（その難しさの問題数）のうちは同じ問題が出ない。区切りの日（2026-11-07）からは性別に寄った言葉の問題を外した数で1周：
+    // 最初の周は区切りの前に出た問題と合わせて外した残りを全部出し切るまで、その先は外した数ごとに、同じ問題が無い
+    [0, 1, 2].forEach((t) => {
+      const ok = new Set(g.POOL_OK[t]), L = ok.size, per = [2, 2, 1][t], B = Math.round((Date.parse(g.CUTOFF) - Date.parse("2026-11-04")) / 864e5) * per, seq = seen[t];
+      let i = B; const first = new Set(seq.slice(0, B)); let firstDup = first.size !== B;
+      while (i < seq.length && ![...ok].every((id) => first.has(id))) { if (first.has(seq[i])) firstDup = true; first.add(seq[i]); i++; }
+      if (firstDup || i >= seq.length) out.dup++;
+      for (; i + L <= seq.length; i += L) if (new Set(seq.slice(i, i + L)).size !== L) out.dup++;
+    });
     out.d1201 = JSON.stringify(g.dailyList("2026-12-01"));
     out.tiles = g.P.every((p) => { const a = g.tilesOf(p, 4), b = g.tilesOf(p, 6); return a.includes(p.x) && b.includes(p.x) && new Set(a).size === 4 && new Set(b).size === 6 && JSON.stringify(a) === JSON.stringify(g.tilesOf(p, 4)); });
     out.pos = [0, 1, 2, 3].map((j) => g.P.filter((p) => g.tilesOf(p, 4)[j] === p.x).length);
@@ -113,6 +120,59 @@ try {
     check("同じ日は別のブラウザで開いても同じ5問", sel.d1201 === d2); }
   check("札は答えを含み、4枚・6枚とも重ならず、問題ごとに並びが決まる", sel.tiles);
   check("答えの札の場所が偏らない（どの場所も 15〜35%）", sel.pos.every((n) => n >= P.length * 0.15 && n <= P.length * 0.35), sel.pos.join(","));
+
+  // 2b. 性別に寄った言葉（gender-ng.js）：2026-11-07 からの今日の5問・上級と、とことん・練習で選ばない。それより前の日は main の版と同じ
+  {
+    const src = readFileSync(path.join(root, "qa/a11y.mjs"), "utf8"), m = src.match(/const WORDS = \[([\s\S]*?)\n\];/);
+    const words = m ? [...m[1].matchAll(/\["([^"]+)",/g)].map((x) => x[1]) : [];
+    const NGW = (() => { const sb = {}; vm.runInNewContext(readFileSync(path.join(root, "gender-ng.js"), "utf8"), sb); return sb.BT_GENDER_NG; })();
+    check("gender-ng.js は qa/a11y.mjs（shared-workflows template/qa/a11y.mjs の写し）の WORDS と同じ一覧", words.length > 30 && JSON.stringify(words) === JSON.stringify(NGW), `${words.length}/${(NGW || []).length}`);
+    const info = await page.evaluate(() => { const g = window.__bt; return { cut: g.CUTOFF, ng: [...g.NG].map((id) => g.P[id].x) }; });
+    check("区切りの日は 2026-11-07・外す問題がある（答え・札・熟語のどこかに言葉を持つ問題）", info.cut === "2026-11-07" && info.ng.length > 0, info.ng.join(","));
+    // main の版を一時フォルダに出して開き、区切りの日より前の400日分（〜2026-11-06。第1日より前の日は第1日と同じ）の今日の5問・上級を比べる
+    const { execSync } = await import("node:child_process"), { mkdtempSync, rmSync } = await import("node:fs"), os = await import("node:os");
+    const git = (c) => execSync(c, { cwd: root, stdio: ["ignore", "pipe", "ignore"] });
+    let ref = "origin/main";
+    try { git(`git rev-parse --verify ${ref}`); } catch { try { git("git fetch --depth=1 origin main"); ref = "FETCH_HEAD"; } catch { ref = null; } }
+    let same = null, detail = "main の版を取れなかった";
+    if (ref) {
+      const dir = mkdtempSync(path.join(os.tmpdir(), "bt-main-"));
+      execSync(`git archive ${ref} | tar -x -C ${JSON.stringify(dir)}`, { cwd: root, shell: "/bin/bash" });
+      const days = Array.from({ length: 400 }, (_, i) => new Date(Date.parse("2026-11-06") - i * 864e5).toISOString().slice(0, 10));
+      const grab = async (u) => { const pg = await browser.newPage(); await pg.goto(u); const r = await pg.evaluate((ds) => { const g = window.__bt; return ds.map((k) => JSON.stringify([g.dailyList(k).map((id) => g.P[id]), g.hardList(k).map((id) => g.P[id]), g.dailyList(k).concat(g.hardList(k)).map((id) => [g.tilesOf(g.P[id], 4), g.tilesOf(g.P[id], 6)])])); }, days); await pg.close(); return r; };
+      const a = await grab(pathToFileURL(path.join(dir, "index.html")).href), b = await grab(url);
+      const diff = days.filter((_, i) => a[i] !== b[i]);
+      same = diff.length === 0; detail = `${ref} と比べた。ちがう日：${diff.slice(0, 3).join(",")}`;
+      rmSync(dir, { recursive: true, force: true });
+    }
+    check("区切りの日より前（〜2026-11-06）の400日分の今日の5問・上級（問題・札の並び）は main の版と1字も同じ", same === true, detail);
+    // 画面に出る所（答え・部品・札・札の組み立て・読み・熟語・□の熟語・候補の札）を文字列でつないで探す
+    const fut = await page.evaluate((ws) => {
+      const g = window.__bt, bad = []; const shown = (id) => { const p = g.P[id]; return JSON.stringify([p, p.w.replace(p.x, "□"), g.tilesOf(p, 4), g.tilesOf(p, 6), g.eqHtml(p, p.x, { win: true })]); }, has = (txt) => ws.some((w) => (w === "OL" ? /(?<![A-Za-z])OL(?![A-Za-z])/.test(txt) : txt.includes(w)));
+      for (let n = 0; n < 365 * 3; n++) {
+        const k = new Date(Date.parse("2026-11-07") + n * 864e5).toISOString().slice(0, 10);
+        const txt = g.dailyList(k).concat(g.hardList(k)).map((id) => shown(id)).join("\n");
+        if (has(txt)) bad.push(k);
+      }
+      return bad;
+    }, NGW);
+    check("2026-11-07 から3年分の今日の5問・上級に、性別に寄った言葉が画面に出る所のどこにも無い", fut.length === 0, fut.slice(0, 3).join(","));
+    const pp = await newPage();
+    const ep = await pp.evaluate((ws) => {
+      const g = window.__bt, R = Math.random; let bad = 0, n = 0; const shown = (id) => { const p = g.P[id]; return JSON.stringify([p, p.w.replace(p.x, "□"), g.tilesOf(p, 4), g.tilesOf(p, 6), g.eqHtml(p, p.x, { win: true })]); }, has = (txt) => ws.some((w) => (w === "OL" ? /(?<![A-Za-z])OL(?![A-Za-z])/.test(txt) : txt.includes(w)));
+      try {
+        for (let i = 0; i < 300; i++) { if (i < 2) Math.random = i === 0 ? () => 0 : () => 0.999999; const l = g.endlessList(); Math.random = R; n += l.length; if (has(l.map((id) => shown(id)).join("\n"))) bad++; }
+        for (let t = 0; t < 4; t++) for (let i = 0; i < 300; i++) {
+          if (i < 2) Math.random = i === 0 ? () => 0 : () => 0.999999;
+          g.startRun("p", t); Math.random = R;
+          const l = g.load().runs.p.list; n += l.length; if (has(l.map((id) => shown(id)).join("\n"))) bad++;
+        }
+      } finally { Math.random = R; }
+      return { bad, n };
+    }, NGW);
+    await pp.close();
+    check("とことん300回・練習（4つの難しさ×300回）を作っても、性別に寄った言葉が出ない", ep.bad === 0 && ep.n > 5000, `${ep.bad}回・${ep.n}問`);
+  }
 
   // 3. 通しで遊ぶ
   check("初めて開くと遊び方が出る", await page.locator("#howto[open]").count() === 1);
