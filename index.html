@@ -373,6 +373,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 </dialog>
 <script src="data.js"></script>
 <script src="parts.js"></script>
+<script src="gender-ng.js"></script>
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id), app = $("app");
@@ -384,6 +385,11 @@ const RN = window.BT_DATA.RN;
 // 1問 = { x:答え, t:難しさ, ps:[部品], d:[まちがいの札], dl:[まちがいの札の組み立て], on, kun, w:熟語, wr:熟語の読み }
 const P = window.BT_DATA.P.map((a, i) => ({ id: i, x: a[0], t: a[1], ps: a[2], d: a[3], dl: a[4], on: a[5], kun: a[6], w: a[7], wr: a[8] }));
 const POOL = [0, 1, 2, 3].map((t) => P.filter((p) => p.t === t).map((p) => p.id));
+// 性別に寄った言葉（gender-ng.js）を、答え・部品・札・札の組み立て・読み・熟語のどこかに持つ問題。2026-11-07（CUTOFF）からの今日の5問・上級と、とことん・練習では選ばない（過去の日の問題はそのまま。satou さん 2026-11-06）
+const CUTOFF = "2026-11-07", NG_W = window.BT_GENDER_NG || [];
+const ngText = (s) => NG_W.some((w) => (/^[A-Za-z]+$/.test(w) ? new RegExp("(^|[^A-Za-z])" + w + "(?![A-Za-z])").test(s) : s.includes(w))); // 英字だけの言葉は英字の続きでないときだけ（後読みは Safari 16.3 までで動かないので使わない）
+const NG = new Set(P.filter((p) => ngText([p.x, ...p.ps, ...p.d, ...p.dl, p.on, p.kun, p.w, p.wr].join("\n"))).map((p) => p.id));
+const POOL_OK = POOL.map((pool) => pool.filter((id) => !NG.has(id)));
 
 // ---- 日付と乱数（日本時間。だれでも同じ5問）----
 const jstNow = () => new Date(Date.now() + 9 * 3600e3);
@@ -395,12 +401,16 @@ function shuffled(arr, R) { const a = arr.slice(); for (let i = a.length - 1; i 
 // 難しさごとの問題を、周ごとに混ぜた順で1日 n 問ずつ使う（1周するまで同じ問題は出ない）
 function nth(t, idx) { const pool = POOL[t], cyc = Math.floor(idx / pool.length); return shuffled(pool, rng(seedOf("cycle" + t + ":" + cyc)))[idx % pool.length]; }
 const dayIdx = (k) => Math.max(0, dayNo(k) - 1);
+// CUTOFF からは、同じ周の並び（nth）のまま外す問題だけを飛ばして詰める（その日より前の問題は1字も変えない・1周するまで同じ問題は出ない）。PER は1日に使う数
+const PER = [2, 2, 1, 6], SKIP = [[], [], [], []];
+function nthOk(t, idx) { const base = dayIdx(CUTOFF) * PER[t], q = SKIP[t]; let pos = q.length ? q[q.length - 1] + 1 : base; while (q.length <= idx - base) { const id = nth(t, pos); if (!NG.has(id)) q.push(pos); pos++; } return nth(t, q[idx - base]); }
+const pickAt = (k, t, idx) => (k < CUTOFF ? nth(t, idx) : nthOk(t, idx));
 // 今日の5問：やさしい2・ふつう2・むずかしい1。上級：部品3つを5問（1日6問ずつ使い、今日の5問と同じ答えの字は飛ばす）
-const dailyList = (k) => { const n = dayIdx(k); return [nth(0, n * 2), nth(0, n * 2 + 1), nth(1, n * 2), nth(1, n * 2 + 1), nth(2, n)]; };
-const hardList = (k) => { const n = dayIdx(k), used = new Set(dailyList(k).map((id) => P[id].x)), out = []; for (let j = 0; j < 6 && out.length < 5; j++) { const id = nth(3, n * 6 + j); if (!used.has(P[id].x) && !out.some((o) => P[o].x === P[id].x)) out.push(id); } for (let j = 6; out.length < 5; j++) { const id = nth(3, n * 6 + j); if (!out.includes(id) && !used.has(P[id].x)) out.push(id); } return out; };
+const dailyList = (k) => { const n = dayIdx(k), f = (t, i) => pickAt(k, t, i); return [f(0, n * 2), f(0, n * 2 + 1), f(1, n * 2), f(1, n * 2 + 1), f(2, n)]; };
+const hardList = (k) => { const n = dayIdx(k), f = (t, i) => pickAt(k, t, i), used = new Set(dailyList(k).map((id) => P[id].x)), out = []; for (let j = 0; j < 6 && out.length < 5; j++) { const id = f(3, n * 6 + j); if (!used.has(P[id].x) && !out.some((o) => P[o].x === P[id].x)) out.push(id); } for (let j = 6; out.length < 5; j++) { const id = f(3, n * 6 + j); if (!out.includes(id) && !used.has(P[id].x)) out.push(id); } return out; };
 // とことん：やさしい5問 → ふつう10問 → むずかしい20問 → 部品3つ25問の順に、毎回ちがう並びで出す（乱数は練習ととことんだけ。同じ答えの字は1回だけ）
 const ELIFE = 3, ERAMP = [[0, 5], [1, 10], [2, 20], [3, 25]];
-function endlessList() { const out = [], xs = new Set(); for (const [t, n] of ERAMP) { const pool = POOL[t].slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; } let c = 0; for (const id of pool) { if (c >= n) break; if (xs.has(P[id].x)) continue; xs.add(P[id].x); out.push(id); c++; } } return out; }
+function endlessList() { const out = [], xs = new Set(); for (const [t, n] of ERAMP) { const pool = POOL_OK[t].slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; } let c = 0; for (const id of pool) { if (c >= n) break; if (xs.has(P[id].x)) continue; xs.add(P[id].x); out.push(id); c++; } } return out; }
 // 札：答えと、まちがいの札（今日の5問は4枚・上級は6枚）。並びは問題ごとに決まる
 function tilesOf(p, n) { return shuffled([p.x, ...p.d.slice(0, n - 1)], rng(seedOf("tiles:" + p.id + ":" + n))); }
 const starsOf = (m) => (m === 0 ? 3 : m === 1 ? 2 : 1); // m = まちがい＋ヒント
@@ -568,7 +578,7 @@ function startRun(mode, opt) {
     if (mode === "d") list = dailyList(k);
     else if (mode === "h") list = hardList(k);
     else if (typeof opt === "object") list = [opt.id];
-    else { const pool = POOL[opt].slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; } list = pool.slice(0, 5); }
+    else { const pool = POOL_OK[opt].slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; } list = pool.slice(0, 5); }
     s.runs[mode] = { mode, date: k, list, res: [], cur: null, ...(mode === "p" ? { id: Date.now().toString(36) + "-" + performance.now().toFixed(3) } : {}) }; // 練習は始めるたびに見分ける（同じ問題をやり直しても、古い回と取り違えない）
   });
   MODE = mode;
@@ -813,7 +823,7 @@ function calView(ym) {
   bindFooter(); window.scrollTo(0, 0);
 }
 
-window.__bt = { mode: () => MODE, endlessList, ELIFE, ERAMP, eqHtml, P, POOL, RN, dailyList, hardList, tilesOf, starsOf, seedOf, todayKey, dayNo, shareText, streak, load, cur: () => cur, play: (m) => { if (m) MODE = m; play(); }, pickKanji, hitsOf, isAlt, BP, ACH, achGot, achProg, missedDays, calView, achView, startRun, playedDays, aKey, nextAch, achProg_: achProg };
+window.__bt = { mode: () => MODE, endlessList, ELIFE, ERAMP, eqHtml, P, POOL, POOL_OK, NG, CUTOFF, RN, dailyList, hardList, tilesOf, starsOf, seedOf, todayKey, dayNo, shareText, streak, load, cur: () => cur, play: (m) => { if (m) MODE = m; play(); }, pickKanji, hitsOf, isAlt, BP, ACH, achGot, achProg, missedDays, calView, achView, startRun, playedDays, aKey, nextAch, achProg_: achProg };
 home();
 if ("serviceWorker" in navigator && location.protocol === "https:" && /github\.io$/.test(location.hostname)) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
