@@ -37,6 +37,7 @@ node qa/run.mjs   # 答えが1つか（組み立ての表で全部の常用漢�
 - 応援は Ko-fi（https://ko-fi.com/satouaaaaa）へのただのリンクだけ。今日の5問・上級を初めて終えて全問一発のときだけ、結果の画面の下に1行（共有フォルダ kofi/app-guide.md）。遊ぶのは無料のまま、有料版は置かない。
 - 外へ通信しない。外から読むのは Google Fonts の文字だけ（CSP の `connect-src 'self'` を広げない）。記録は遊ぶ人のブラウザ（localStorage）だけ。
 - 同じ日はどの端末でも同じ問題にする：乱数は `sort` の比較の中で引かない（QA が見る）。少し遅れて動く処理（setTimeout）は、画面が替わっていたら何もしない。
+- 画面のコードに正規表現の後読み `(?<!…)`・`(?<=…)` を書かない（Safari 16.3 までは例外で止まる。2026-11-06 CodeRabbit。QA が見る）。
 - キーボードで選んだときの枠（`:focus-visible`）は style のいちばん最後に `:is(.icon,button,a):focus-visible{…!important}` で書く（`all:unset` のボタンでも消えない。2026-11-04 CodeRabbit がほかのゲームで指摘。QA が見る）。あとから遊ぶ日は、始める前に記録を読み直し、もう終えていたら知らせてホームへ戻す。
 - 押せる所は高さ44px以上、幅320pxでも部品3つの式は1行に収める（QA が見る）。機能を足す・直すたびに `qa/run.mjs` に検査を足す。乱数で組む部分は何年分も作って確かめる（shared-workflows `incidents/2026-10-31-roppo-empty-village.md`）。
 - PWA（`manifest.webmanifest`・`sw.js`・`icon-*.png`）：画面のファイルを足したら `sw.js` の `SHELL` にも足し、中身を大きく変えたら `CACHE` の版を上げる。アイコンは `node tools/make-icons.cjs`、SNS 用の絵 `og.png` は `node tools/make-og.cjs`（今日の答えを入れない）。
