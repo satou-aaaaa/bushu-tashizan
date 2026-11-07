@@ -179,7 +179,9 @@ try {
 
   // 3. 通しで遊ぶ
   check("初めて開くと遊び方が出る", await page.locator("#howto[open]").count() === 1);
-  await page.click("#howto-ok");
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100); check("遊び方を Esc で閉じられる", await page.locator("#howto[open]").count() === 0);
+  await page.reload(); await page.waitForTimeout(200); check("遊び方を Esc で閉じても、開き直したとき出ない", await page.locator("#howto[open]").count() === 0);
+  await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForTimeout(200); await page.click("#howto-ok"); await page.reload(); await page.waitForTimeout(200); check("遊び方を「わかった」で閉じてすぐ読み直しても出ない", await page.locator("#howto[open]").count() === 0);
   check("ホームの例は遊び方と同じ（日＋月＝？）", (await page.textContent(".hero .eq")).replace(/\s/g, "") === "日＋月＝？");
   check("上級ははじめて開いた日から、今日の5問の前でも押せる（🔒・「…すると開く」なし）", (await page.locator("#go-h").count()) === 1 && !(await page.locator("#go-h").isDisabled()) && !/🔒|すると開く/.test(await page.textContent("body")));
   for (const [w, h] of [[390, 844], [320, 640]]) { // スマホ幅で、ホームの大きなボタンが1行・最初のボタンがはじめの1画面に入る・入力欄の「できる漢字」が真ん中。2行になるとボタンの字の下の端が1行ぶん（20px 以上）ずれる
