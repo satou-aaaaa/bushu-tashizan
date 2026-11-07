@@ -83,6 +83,7 @@ button.sub:disabled{opacity:.4;cursor:default}
 .stars{color:var(--near);letter-spacing:.1em;font-size:20px}
 .stars .off{color:#1f1b1626}
 .near{background:var(--paper);border:1px dashed var(--line);border-radius:10px;padding:8px 10px;font-size:14px;text-align:center;color:var(--ink2)}
+.near.ng{border:1.5px solid var(--shu);border-left-width:5px;color:var(--ink);animation:up .25s ease-out}
 .near b{color:var(--ink);font-family:var(--f-disp);font-size:18px}
 /* ホーム */
 .title{font-family:var(--f-disp);font-weight:800;font-size:40px;letter-spacing:.16em;text-align:center;margin:4px 0 0}
@@ -97,10 +98,11 @@ button.sub:disabled{opacity:.4;cursor:default}
 .shares{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .shares a,.shares button{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font-size:14px;font-weight:700;text-decoration:none;padding:0 6px;box-sizing:border-box;font-family:inherit;cursor:pointer}
 .big{font-family:var(--f-disp);font-size:28px;text-align:center;margin:0}
+.big small{font-size:18px;color:var(--ink2)}
 .rlist{display:flex;flex-direction:column;gap:8px}
-.rlist div{display:flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
-.rlist .x{font-family:var(--f-disp);font-weight:800;font-size:30px;flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:8px;background:var(--shu);color:#fff}
-.rlist .w{flex:1;font-size:13px;color:var(--ink2);line-height:1.5}
+.rlist div{display:flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:6px 12px}
+.rlist .x{font-family:var(--f-disp);font-weight:800;font-size:26px;flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:8px;background:var(--shu);color:#fff}
+.rlist .w{flex:1;font-size:13px;color:var(--ink2);line-height:1.35}
 .rlist .w b{color:var(--ink);font-family:var(--f-disp);font-size:15px}
 /* 漢字帳 */
 .dex{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
@@ -117,7 +119,7 @@ dialog ol{padding-left:1.3em;margin:0 0 12px;line-height:1.8}
 dialog p{margin:0 0 10px;font-size:14px;line-height:1.7;color:var(--ink2)}
 dialog a{color:var(--shu2);min-height:44px;display:inline-flex;align-items:center}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;z-index:9;box-shadow:0 6px 20px #0005;max-width:90%;text-align:center}
-.hint{background:var(--paper);border:1px solid var(--shu);border-radius:12px;padding:10px 12px;font-size:14px;text-align:center}
+.hint{background:var(--paper);border:1px solid var(--line);color:var(--ink2);border-radius:12px;padding:10px 12px;font-size:14px;text-align:center}
 footer{margin-top:auto;text-align:center;font-size:12px;color:var(--ink2);display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
 footer a{color:var(--ink2);min-height:44px;display:inline-flex;align-items:center}
 /* 手ごたえ：まちがえた字が持つ部品に○。正解すると部品が答えへ寄って、一発なら朱の印 */
@@ -134,7 +136,8 @@ footer a{color:var(--ink2);min-height:44px;display:inline-flex;align-items:cente
 /* 入力して答える */
 .ansrow{display:flex;gap:8px}
 .ansrow input{flex:1;min-width:0;min-height:52px;box-sizing:border-box;border:1.5px solid var(--ink);border-radius:12px;background:#fff;color:var(--ink);font-family:var(--f-disp);font-weight:800;font-size:24px;padding:0 12px;text-align:center}
-.ansrow input::placeholder{font-family:var(--f-body);font-weight:500;font-size:16px;color:#a99d8c}
+.ansrow input::placeholder{font-family:var(--f-body);font-weight:500;font-size:16px;color:#7d7262}
+.ansrow input:placeholder-shown{font-family:var(--f-body);font-weight:500;font-size:16px}
 .ansrow input:focus{outline:2px solid var(--shu);outline-offset:1px}
 .ansrow button.main{flex:0 0 auto;min-width:88px}
 .pt.ans .k.typing{opacity:.6}
@@ -546,7 +549,7 @@ function home() {
     <p class="lead" data-a11y-say>漢字の部品を合わせると、どの字になる？<br>だれでも同じ1日5問。</p>
     ${done ? `<div class="share">今日の結果\n${done.m.map((m) => "★".repeat(starsOf(m))).join("　")}</div>` : ""}
     <button class="main" id="go-d">${done ? "今日の結果を見る" : rd ? `続きから（${rd.res.length + 1}問目）` : `今日の5問をとく <small>#${dayNo(k)}</small>`}</button>
-    <button class="main alt" id="go-h">${hdone ? "上級の結果を見る" : rh ? "上級の続きから" : "上級：部品3つの5問（ヒント・候補なし）"}</button>
+    <button class="main alt" id="go-h">${hdone ? "上級の結果を見る" : rh ? "上級の続きから" : "上級：部品3つの5問 <small>ヒントなし</small>"}</button>
     ${(() => { const re = s.runs.e && !doneOf(s.runs.e) ? s.runs.e : null; return `<button class="main alt" id="go-e">${re ? `とことんの続きから（${re.res.length + 1}問目）` : "とことん：何問続けてとける？"}${s.ebest ? ` <small>自己ベスト ${s.ebest}問</small>` : ""}</button>`; })()}
     <div class="row"><button class="sub" id="go-p">練習（何度でも）</button><button class="sub" id="go-dex">漢字帳 ${n}/${XN}</button></div>
     ${miss.length ? `<button class="sub" id="go-late">↺ 取りこぼした日をあとから（${miss.length}日）</button>` : ""}
@@ -619,7 +622,7 @@ function play() {
     <div class="tiles" id="cands" hidden></div>
     <div id="after"></div>
     ${run.mode === "e" ? `<p class="note">まちがえても、ヒントを見ても終わりません（1問にヒント3回まで）。</p><button class="sub" id="quit" style="width:100%">ここで降りる（${i}問で終える）</button>` : ""}
-    ${!s.tut || (Object.keys(s.dex).length === 0 && i === 0) ? `<p class="hint">部品を合わせてできる漢字を1字打ちます。</p>` : ""}`;
+    ${!s.tut || (Object.keys(s.dex).length === 0 && i === 0) ? `<p class="hint">合わせてできる漢字を1字打ちます</p>` : ""}`;
   $("back").onclick = home;
   const ans = $("ans");
   // 変換中の Enter では送らない（IME の確定に使う。isComposing と keyCode 229 の両方を見る）
@@ -668,7 +671,7 @@ function guess(ch) {
     const hs = hitsOf(p, ch), n = hs.filter(Boolean).length, lb = buildOf(p, ch);
     $("bd").innerHTML = eqHtml(p, esc(ch), { hits: hs });
     $("ctr").classList.add("bad");
-    $("near").innerHTML = `<div class="near">「<b>${esc(ch)}</b>」${lb ? `は ${lb.map((c) => `<b>${esc(c)}</b>`).join("＋")} でできている` : "ではない"}${n ? `。部品を${n}つ持つ${n >= 2 ? "（惜しい！）" : ""}` : ""}</div>`;
+    $("near").innerHTML = `<div class="near ng">✕ 「<b>${esc(ch)}</b>」${lb ? `は ${lb.map((c) => `<b>${esc(c)}</b>`).join("＋")} でできている` : "ではない"}${n ? `。部品を${n}つ持つ${n >= 2 ? "（惜しい！）" : ""}` : ""}</div>`;
     paintTried();
     say(`まちがい。${$("near").textContent}`);
     setTimeout(() => { if ($("ctr") && !cur.done && $("ctr").textContent === ch) { $("ctr").classList.remove("bad"); } }, 450);
@@ -683,6 +686,7 @@ function guess(ch) {
   const s = save((s) => { const r = s.runs[MODE]; if (!same(r)) return; saved = true; r.res.push({ m: mistakes, h: cur.hints }); r.cur = null; if (r.mode === "e" && r.res.length >= r.list.length) r.list.push(...moreList(s, r.list[r.list.length - 1])); s.dex[p.x] = Math.max(s.dex[p.x] || 0, st); newA = claimAch(s); });
   if (!saved) { toast("別の画面で先に進んでいます"); return play(); }
   if ($("hint")) $("hint").style.display = "none";
+  for (const id of ["near", "hints"]) $(id).style.display = "none"; document.querySelector(".status").style.display = "none"; // 正解の札に回数を出すので、上の「まちがい n」と空いた所は消す（札を盤のすぐ下に）
   $("bd").innerHTML = eqHtml(p, esc(ch), { win: true, merge: true }); // 部品が答えへ寄ってから、答えが朱に変わる
   $("near").innerHTML = ""; $("hints").innerHTML = ""; document.querySelectorAll(".hint").forEach((e) => e.remove());
   const r = s.runs[MODE], last = r && r.res.length >= r.list.length;
@@ -750,16 +754,18 @@ function result(mode, k, first, prec) {
   if (showKofi) save((s2) => { s2.kofi[k + mode] = 1; });
   app.innerHTML = `
     <header><button class="icon" id="back" aria-label="ホームへ">←</button><h1>部首たし算<small>${mode === "d" ? `今日の5問 #${dayNo(k)}` : mode === "a" ? `#${dayNo(k)} あとから` : mode === "h" ? "上級" : "練習"}</small></h1><span></span></header>
-    <p class="big" data-a11y-say>${total === 0 ? "全問一発！" : `まちがい・ヒント ${total}`}</p>
+    <p class="big" data-a11y-say>${total === 0 ? "全問一発！" : `★${rec.m.reduce((a, m) => a + starsOf(m), 0)}<small> / ${rec.m.length * 3}</small>`}</p>
+    ${total ? `<p class="note" id="rsum">まちがい・ヒント ${total}回</p>` : ""}
     ${achLine(newA)}
     ${nextLine(s)}
     <div class="rlist">${list.map((id, j) => { const p = P[id]; return `<div><span class="x">${p.x}</span><span class="w"><b>${plain(p.ps)}</b><br>${starStr(starsOf(rec.m[j]))} ${p.w}（${p.wr}）</span></div>`; }).join("")}</div>
     ${mode !== "p" ? `<div class="share">${esc(text)}</div>
     <button class="main" id="share">結果をシェア</button>
     <div class="shares"><a id="toX" target="_blank" rel="noopener">Xで投稿</a><a id="toLine" target="_blank" rel="noopener">LINEで送る</a><button id="copy">コピー</button></div>
-    <p class="note">🟩一発　🟨まちがい1回　🟧2回以上　💡ヒント${mode === "a" ? "" : `<br>次の5問まで あと <b>${untilNext()}</b>`}</p>` : ""}
+    ` : ""}
     ${mode !== "p" ? `<button class="main" id="go-e">続けて遊ぶ：とことん${s.ebest ? `（ベスト ${s.ebest}問）` : ""}</button>` : ""}
     ${mode === "d" && k === todayKey() && !s.hdays[k] ? `<button class="main alt" id="go-h">上級：部品3つの5問に挑む</button>` : ""}
+    ${mode !== "p" ? `<p class="note">🟩一発　🟨まちがい1回　🟧2回以上　💡ヒント${mode === "a" ? "" : `<br>次の5問まで あと <b>${untilNext()}</b>`}</p>` : ""}
     <div class="row"><button class="sub" id="go-p">練習する</button><button class="sub" id="go-dex">漢字帳を見る</button></div>
     <div class="row"><button class="sub" id="go-ach">🏅 実績</button><button class="sub" id="go-cal">📅 記録</button></div>
     ${showKofi ? `<p class="note kofi">楽しめたら、<a href="https://ko-fi.com/satouaaaaa" target="_blank" rel="noopener">Ko-fi でコーヒー1杯の応援</a>をもらえると、新しい問題とゲームづくりの励みになります（任意・遊ぶのはずっと無料）。</p>` : ""}

@@ -182,6 +182,15 @@ try {
   await page.click("#howto-ok");
   check("ホームの例は遊び方と同じ（日＋月＝？）", (await page.textContent(".hero .eq")).replace(/\s/g, "") === "日＋月＝？");
   check("上級ははじめて開いた日から、今日の5問の前でも押せる（🔒・「…すると開く」なし）", (await page.locator("#go-h").count()) === 1 && !(await page.locator("#go-h").isDisabled()) && !/🔒|すると開く/.test(await page.textContent("body")));
+  for (const [w, h] of [[390, 844], [320, 640]]) { // スマホ幅で、ホームの大きなボタンが1行・最初のボタンがはじめの1画面に入る・入力欄の「できる漢字」が真ん中。2行になるとボタンの字の下の端が1行ぶん（20px 以上）ずれる
+    const ph = await newPage(w, h); await ph.click("#howto-ok");
+    const r = await ph.evaluate(() => { const one = (id) => { const rg = document.createRange(); rg.selectNodeContents(document.getElementById(id)); const bs = [...rg.getClientRects()].filter((x) => x.width > 0).map((x) => x.bottom); return Math.max(...bs) - Math.min(...bs) < 12; }; return { one: ["go-d", "go-h", "go-e"].every(one), top: document.getElementById("go-d").getBoundingClientRect().bottom <= innerHeight, over: document.documentElement.scrollWidth > innerWidth }; });
+    check(`${w}×${h}：ホームの今日・上級・とことんのボタンは1行で、「今日の5問をとく」がはじめの1画面に入る・横にはみ出さない`, r.one && r.top && !r.over, JSON.stringify(r));
+    await ph.click("#go-d");
+    const ip = await ph.evaluate(() => { const a = document.getElementById("ans"), e = parseFloat(getComputedStyle(a).fontSize); a.value = "明"; a.dispatchEvent(new Event("input")); const f = parseFloat(getComputedStyle(a).fontSize); return { e, f, hint: document.querySelector(".hint").getBoundingClientRect().height }; });
+    check(`${w}×${h}：入力欄は空のとき案内の字と同じ大きさ（「できる漢字」が真ん中）で、打つと大きな字・最初の案内は1行`, ip.e === 16 && ip.f >= 24 && ip.hint < 50, JSON.stringify(ip));
+    await ph.close();
+  }
   await page.click("#go-d");
   let p = await curP(page);
   check("1問目は「やさしい」・部品2つ・札は無く入力欄（16px以上・lang=ja・自動修正なし）・答えの所は「？」", p.t === 0 && (await page.locator("#bd .pt").count()) === 3 && (await page.locator(".tile").count()) === 0 && (await page.textContent("#ctr")) === "？" && (await page.evaluate(() => { const a = document.querySelector("#ans"); return parseFloat(getComputedStyle(a).fontSize) >= 16 && a.lang === "ja" && a.getAttribute("autocomplete") === "off" && a.getAttribute("autocapitalize") === "off" && a.getAttribute("spellcheck") === "false" && a.getAttribute("enterkeyhint") === "done"; })));
@@ -189,6 +198,7 @@ try {
   await type(page, wrong);
   const lb = p.dl[p.d.indexOf(wrong)];
   check("まちがえると、打った字が答えの所に出て、その字の組み立て（分かるとき）が出る", (await page.textContent("#ctr")) === wrong && (await page.textContent("#near")).includes(wrong) && (!lb || (await page.textContent("#near")).includes(lb.split(" + ")[0])));
+  check("まちがえた瞬間がはっきり分かる：知らせの枠が朱で「✕」付き（色だけに頼らない）", await page.evaluate(() => { const n = document.querySelector("#near .near.ng"); return !!n && n.textContent.trim().startsWith("✕") && getComputedStyle(n).borderLeftWidth === "5px"; }));
   check("まちがえた字が持つ部品に○が付き（×は付けない）、下に打った字が残る・入力欄は空にもどる", await page.evaluate((x) => { const g = window.__bt, p = g.P.find((q) => q.id === x.id), hs = g.hitsOf(p, x.w), mk = [...document.querySelectorAll("#bd .pt:not(.ans)")].map((e) => !!e.querySelector(".mk.ok")); return JSON.stringify(mk) === JSON.stringify(hs) && !document.querySelector("#bd .mk.ng"); }, { id: p.id, w: wrong }) && (await triedHas(page, wrong)) && (await page.inputValue("#ans")) === "");
   await page.click("#hint");
   check("ヒント1回目で読みが出る（熟語はまだ出ない）", (await page.textContent("#hints")).includes(p.on || p.kun) && !(await page.textContent("#hints")).includes("熟語"));
@@ -201,6 +211,7 @@ try {
   await type(page, p.x);
   check("正解すると、組み立て・読み・熟語が出て★1（まちがい1・ヒント2）", (await page.textContent(".verdict")).includes(p.w) && (await page.textContent(".verdict")).includes(p.wr) && (await page.locator(".verdict .stars .off").textContent()).length === 2);
   check("正解のあとは入力欄とヒントが消える", !(await page.locator("#inp").isVisible()) && (await page.textContent("#hints")) === "");
+  check("正解の札は盤のすぐ下に出る（上の「まちがい n」は消し、札に回数を出す）", await page.evaluate(() => { const st = document.querySelector(".status"), bd = document.querySelector("#bd").getBoundingClientRect(), v = document.querySelector(".verdict").getBoundingClientRect(); return getComputedStyle(st).display === "none" && v.top - bd.bottom < 50; }));
   check("正解すると部品が答えへ寄る（手ごたえ）・初めての実績が結果に小さく出る", (await page.locator("#bd .eq.merge").count()) === 1 && (await page.textContent(".verdict .achnew")).includes("🏅 実績：はじめの一字"));
   await page.click("#next");
   p = await curP(page);
@@ -217,6 +228,8 @@ try {
   check("結果に5問の答えと組み立てが出る", (await page.locator(".rlist > div").count()) === 5);
   check("まちがいのあった日は Ko-fi のひとことを出さない", (await page.locator(".kofi").count()) === 0);
   check("今日の5問の結果に「続けて遊ぶ：とことん」の大きなボタン", (await page.locator("#go-e.main").count()) === 1 && (await page.textContent("#go-e")).includes("とことん"));
+  check("結果の見出しは★の合計（★n / 15）で、まちがい・ヒントの回数は小さく下に", /^★\d+ \/ 15$/.test((await page.textContent(".big")).trim()) && (await page.textContent("#rsum")).includes("回"));
+  check("390×844 の結果の画面で「続けて遊ぶ：とことん」がはじめの1画面に入る（シェアのすぐ下）", await page.evaluate(() => { scrollTo(0, 0); const r = document.querySelector("#go-e").getBoundingClientRect(); return r.bottom <= innerHeight && document.querySelector(".shares").getBoundingClientRect().bottom <= r.top; }));
   await page.click("#back");
   check("ホームで連続1日・今日の結果を見るに変わる・漢字帳に5字", (await page.textContent(".rank")).includes("連続1日") && (await page.textContent("#go-d")).includes("今日の結果") && (await page.textContent("#go-dex")).includes("5/"));
   await page.click("#go-h");
