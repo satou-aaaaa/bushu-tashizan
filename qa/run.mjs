@@ -535,6 +535,22 @@ try {
     const q2 = await curP(pv); await type(pv, q2.d[0]); await type(pv, q2.x);
     check("「動きを減らす」では振動しない", (await pv.evaluate(() => window.__vib)) === 0 && (await pv.locator(".verdict").count()) === 1);
     await pv.close(); }
+  // 直した不具合がもどっていないか（保存できないときの帯・知らせ・ヒント・とことん・ホームの題）
+  { // 知らせ（.toast）は下のボタンを押すじゃまをしない
+    const pt = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await pt.goto(url);
+    check("知らせ（.toast）の pointer-events が none（出ているあいだも下のボタンを押せる）", (await pt.evaluate(() => { const d = document.createElement("div"); d.className = "toast"; d.textContent = "x"; document.body.appendChild(d); const v = getComputedStyle(d).pointerEvents; d.remove(); return v; })) === "none");
+    await pt.close(); }
+  { // 保存に失敗したら帯 #savewarn で知らせ続け、保存できたら消す（黙って記録が消えないように）
+    const pw = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    pw.on("pageerror", (e) => errors.push(e.message));
+    await pw.addInitScript(() => { window.__origSetItem = Storage.prototype.setItem; Storage.prototype.setItem = () => { throw new Error("blocked"); }; });
+    await pw.goto(url); await pw.click("#howto-ok"); await pw.waitForTimeout(2000);
+    check("保存できないときは、帯 #savewarn がちょうど1つ出て、2秒たっても残る", (await pw.locator("#savewarn").count()) === 1, await pw.locator("#savewarn").count());
+    await pw.evaluate(() => { Storage.prototype.setItem = window.__origSetItem; });
+    await pw.click("#f-how"); await pw.click("#howto-ok");
+    check("保存できるようになって次に保存すると、帯 #savewarn が消える", (await pw.locator("#savewarn").count()) === 0);
+    await pw.close(); }
 } catch (e) { // 途中で止まっても、ここまでの結果とレポートは書き出す
   check("QA の操作が最後まで完了する", false, e.message.split("\n")[0]);
 } finally {
