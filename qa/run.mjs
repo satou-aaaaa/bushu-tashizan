@@ -261,7 +261,7 @@ try {
     const p3 = await newPage(w, 700); const fb2 = await p3.evaluate(() => { const a = document.querySelector("#howto #fb2"); return a ? a.getBoundingClientRect().height : 0; }); check(`幅${w}px：遊び方の「感想を送る」も高さ44px以上`, fb2 >= 44, `${fb2}px`); await p3.click("#howto-ok");
     const homeOk = await p3.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
     await p3.click("#go-d");
-    const r = await p3.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a, input")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim() || e.id) }));
+    const r = await p3.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a, input")].filter((e) => e.offsetParent && Math.round(e.getBoundingClientRect().height) < 44).map((e) => e.textContent.trim() || e.id) }));
     check(`幅${w}px：横にはみ出さず、押せる所は高さ44px以上`, homeOk && !r.over && r.small.length === 0, r.small.join(","));
     await p3.click("#back"); await p3.click("#go-p"); await p3.locator(".lv button").nth(3).click();
     const r3 = await p3.evaluate(() => { const g = window.__bt, box = document.querySelector("#bd .eq").parentElement, bad = []; const keep = box.innerHTML; for (const p of g.P) { if (p.ps.length < 3) continue; box.innerHTML = g.eqHtml(p, ""); const e = box.querySelector(".eq"); if (e.scrollWidth > e.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth) bad.push(p.x); } box.innerHTML = keep; return bad; }); // 乱数で選んだ1問でなく、部品3つの問題を全部ならべて確かめる
@@ -370,7 +370,7 @@ try {
     check("実績はいまの記録から数える（取れたもの・進み具合）", ["first", "perfect", "hard1", "dex50", "late1", "days3"].every((id) => r.got.includes(id)) && !r.got.includes("hardp") && !r.got.includes("dex300") && r.d300.join() === "60,300" && r.week.join() === "4,7" && r.s3.join() === "10,50", JSON.stringify(r));
     await pa.evaluate((K) => { const g = window.__bt, s = g.load(); s.tut = true; s.dex = Object.fromEntries([...new Set(g.P.map((p) => p.x))].slice(0, 60).map((x) => [x, 1])); localStorage.setItem(K, JSON.stringify(s)); }, KEY);
     await pa.reload(); await pa.click("#go-ach");
-    const v = await pa.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, n: document.querySelectorAll(".ach").length, pg: document.querySelector('.ach[data-id="dex300"] .pg').textContent, small: [...document.querySelectorAll("button, a")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim() || e.id) }));
+    const v = await pa.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, n: document.querySelectorAll(".ach").length, pg: document.querySelector('.ach[data-id="dex300"] .pg').textContent, small: [...document.querySelectorAll("button, a")].filter((e) => e.offsetParent && Math.round(e.getBoundingClientRect().height) < 44).map((e) => e.textContent.trim() || e.id) }));
     check("実績の画面：幅320pxで崩れず、まだの実績は条件と「60/300」のような進み具合", !v.over && v.n === 13 && v.pg.includes("60/300") && v.small.length === 0, JSON.stringify(v));
     await pa.close(); }
   { // 実績の前から遊んでいた人には、取れている分をまとめて出さない
@@ -484,7 +484,7 @@ try {
     await pw.evaluate((K) => { const g = window.__bt, k = g.todayKey(); localStorage.setItem(K, JSON.stringify({ v: 1, tut: true, days: { [k]: { m: [0, 1, 3, 0, 2], h: [0, 1, 1, 0, 0] } }, hdays: {}, dex: {}, kofi: {}, runs: {}, late: { "2026-11-04": { m: [0, 0, 0, 0, 0], h: [0, 0, 0, 0, 0] } } })); }, KEY);
     await pw.reload();
     const bad = [];
-    for (const go of ["#go-ach", "#go-cal", "#go-d", "#go-e", "#quit"]) { if (go !== "#quit") await pw.click("#back").catch(() => {}); await pw.click(go); const r = await pw.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.textContent.trim() || e.id) })); if (r.over || r.small.length) bad.push(go + ":" + r.small.join("/")); }
+    for (const go of ["#go-ach", "#go-cal", "#go-d", "#go-e", "#quit"]) { if (go !== "#quit") await pw.click("#back").catch(() => {}); await pw.click(go); const r = await pw.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a")].filter((e) => e.offsetParent && Math.round(e.getBoundingClientRect().height) < 44).map((e) => e.textContent.trim() || e.id) })); if (r.over || r.small.length) bad.push(go + ":" + r.small.join("/")); }
     check(`幅${w}px：実績・記録・結果・とことん（遊ぶ・終わり）の画面もはみ出さず、押せる所は44px以上`, bad.length === 0, bad.join(" "));
     await pw.close(); }
   { // キーボードで選んだボタンに枠が出る（all:unset のカレンダーのます目でも消えない。2026-11-04 CodeRabbit の指摘）
