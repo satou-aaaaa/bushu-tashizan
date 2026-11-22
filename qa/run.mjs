@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const url = pathToFileURL(path.join(root, "index.html")).href; // # などを含むフォルダ名でも開ける
 const results = [];
 const check = (name, ok, detail = "") => results.push({ name, ok: !!ok, detail });
-const firstClose = async (q) => { if (await q.locator("#howto[open]").count()) await q.click("#howto-ok"); if (await q.locator("#core-coach").count()) { await q.evaluate(() => Core.coach.leave()); await q.waitForTimeout(100); } }; // はじめての練習の吹き出しをやめてホームへ（sync-template の migrateFirstQa が足した）
+const firstClose = async (q) => { if (await q.locator("#howto[open]").count()) await q.click("#howto-ok"); if (await q.evaluate(() => !!(window.Core && Core.coach && Core.coach.active()))) { await q.evaluate(() => { Core.coach.leave(); scrollTo(0, 0); }); await q.waitForTimeout(100); } }; // はじめての練習の吹き出しをやめてホームへ（sync-template の migrateFirstQa が足した）
 // 画面のコードに正規表現の後読み (?<! (?<= を書かない（Safari 16.3 まで例外で止まる。2026-11-06 CodeRabbit）
 { const lb = ["index.html", ...readdirSync(root).filter((f) => f.endsWith(".js"))].filter((f) => /\(\?<[!=]/.test(readFileSync(path.join(root, f), "utf8"))); check("画面のコードに正規表現の後読みが無い（古い Safari で止まらない）", lb.length === 0, lb.join(" ")); }
 
@@ -188,6 +188,7 @@ try {
   { let again = 0; for (let i = 0; i < 10; i++) { await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForTimeout(200); await page.keyboard.press("Escape"); await page.reload(); await page.waitForTimeout(200); again += await page.locator("#howto[open]").count(); } check("遊び方を Esc で閉じてすぐ読み直しても出ない（10回）", again === 0); }
   await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForTimeout(200); check("はじめての練習が始まったその場で「見た」が残る", await page.evaluate(() => { return Object.keys(localStorage).some((k) => { try { return JSON.parse(localStorage.getItem(k)).tut === true; } catch { return false; } }); })); await firstClose(page);
   check("ホームの例は遊び方と同じ（日＋月＝？）", (await page.textContent(".hero .eq")).replace(/\s/g, "") === "日＋月＝？");
+  await firstClose(page);
   check("上級ははじめて開いた日から、今日の5問の前でも押せる（🔒・「…すると開く」なし）", (await page.locator("#go-h").count()) === 1 && !(await page.locator("#go-h").isDisabled()) && !/🔒|すると開く/.test(await page.textContent("body")));
   for (const [w, h] of [[390, 844], [320, 640]]) { // スマホ幅で、ホームの大きなボタンが1行・最初のボタンがはじめの1画面に入る・入力欄の「できる漢字」が真ん中。2行になるとボタンの字の下の端が1行ぶん（20px 以上）ずれる
     const ph = await newPage(w, h); await firstClose(ph);
@@ -259,7 +260,7 @@ try {
 
   // 4. スマホ幅：はみ出さない・押せる所は44px以上
   for (const w of [320, 390]) {
-    const p3 = await newPage(w, 700); await firstClose(p3).then(() => p3.click("#f-how")); const fb2 = await p3.evaluate(() => { const a = document.querySelector("#howto #fb2"); return a ? a.getBoundingClientRect().height : 0; }); check(`幅${w}px：遊び方の「感想を送る」も高さ44px以上`, fb2 >= 44, `${fb2}px`); await firstClose(p3);
+    const p3 = await newPage(w, 700); await firstClose(p3).then(() => p3.evaluate(() => openHow())); const fb2 = await p3.evaluate(() => { const a = document.querySelector("#howto #fb2"); return a ? a.getBoundingClientRect().height : 0; }); check(`幅${w}px：遊び方の「感想を送る」も高さ44px以上`, fb2 >= 44, `${fb2}px`); await firstClose(p3);
     const homeOk = await p3.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
     await p3.click("#go-d");
     const r = await p3.evaluate(() => ({ over: document.documentElement.scrollWidth > innerWidth, small: [...document.querySelectorAll("button, a, input")].filter((e) => e.offsetParent && Math.round(e.getBoundingClientRect().height) < 44).map((e) => e.textContent.trim() || e.id) }));
@@ -443,6 +444,7 @@ try {
     check("最近出した問題は新しい400問だけ覚える", await pe.evaluate(() => { const g = window.__bt, s = {}; for (let i = 0; i < 450; i++) g.markRecent(s, i); return Object.keys(s.recent).length === g.RECENT && !(0 in s.recent) && (449 in s.recent); }));
     check("recent を整える：時刻でない値・安全でない数を捨て、先の時刻は今に寄せ、新しい400問だけ残す（引き継ぎ・タブを合わせた後も）", await pe.evaluate(() => { const g = window.__bt, rc = {}; for (let i = 0; i < 800; i++) rc[i] = 1000 + i; rc.a = 9007199254740992; rc.b = "x"; rc.c = -5; rc.d = 8e15; const s = g.tidyRecent({ recent: rc }), ks = Object.keys(s.recent); return ks.length === g.RECENT && !("a" in s.recent) && !("b" in s.recent) && !("c" in s.recent) && s.recent.d <= Date.now() + 864e5 && !("0" in s.recent) && s.recent[799] === 1799; }));
     await pe.reload(); await pe.waitForTimeout(200);
+    await firstClose(pe);
     check("ホームに「とことん」の大きなボタン（はじめて開いた日から押せる・🔒や「…すると開く」が無い）", (await pe.locator("#go-e.main").count()) === 1 && (await pe.textContent("#go-e")).includes("何問続けて") && !(await pe.locator("#go-e").isDisabled()) && !/🔒|すると開く|で開く/.test(await pe.textContent("body")));
     check("ホームに Ko-fi のひとこと（.kofi）は出ない（応援のリンクは結果の1行と下の小さなリンクだけ）", (await pe.locator(".kofi").count()) === 0);
     await pe.click("#go-e");
@@ -549,7 +551,7 @@ try {
     await pw.goto(url); await firstClose(pw); await pw.waitForTimeout(2000);
     check("保存できないときは、帯 #savewarn がちょうど1つ出て、2秒たっても残る", (await pw.locator("#savewarn").count()) === 1, await pw.locator("#savewarn").count());
     await pw.evaluate(() => { Storage.prototype.setItem = window.__origSetItem; });
-    await firstClose(pw).then(() => pw.click("#f-how")); await firstClose(pw);
+    await firstClose(pw).then(() => pw.evaluate(() => openHow())); await firstClose(pw);
     check("保存できるようになって次に保存すると、帯 #savewarn が消える", (await pw.locator("#savewarn").count()) === 0);
     await pw.close(); }
 } catch (e) { // 途中で止まっても、ここまでの結果とレポートは書き出す
