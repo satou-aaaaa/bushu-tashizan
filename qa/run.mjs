@@ -43,6 +43,8 @@ check("つらい言葉（死・殺など）を使わない", !P.some((p) => /[�
   check("入力の手がかり用の組み立て表 parts.js は tools/parts.txt（KanjiVG）と合う（node tools/make-parts.cjs で作る）", Object.keys(BP).length === Object.keys(M).length && Object.keys(M).every((k) => BP[k] === M[k].join("|")));
   check("組み立て表で、どの問題にも別解（同じ部品の組み合わせのほかの字）が無い", P.every((p) => !Object.keys(BP).some((y) => y !== p.x && BP[y].split("|").some((t) => key(t.split(" ")) === key(p.ps))))); }
 const html = readFileSync(path.join(root, "index.html"), "utf8");
+// ひな形の写し（<!-- 名前:begin〜end -->）はゲームの言葉ではないので外し、Core.kofi・Core.KOFI は写す前の形にもどして見る（shared-workflows の sync-template が足した）
+const gameOwn = (t) => t.replace(/<!-- ([a-z0-9-]+):begin[\s\S]*?<!-- \1:end -->/g, "").split("${Core.KOFI}").join("https://ko-fi.com/satouaaaaa").replace(/Core\.kofi\(("(?:[^"\\]|\\.)*"), ("(?:[^"\\]|\\.)*")\)/g, (m, a, b) => "`<p class=\"note kofi\">" + JSON.parse(a) + "、<a href=\"https://ko-fi.com/satouaaaaa\" target=\"_blank\" rel=\"noopener\">Ko-fi でコーヒー1杯の応援</a>をもらえると、" + JSON.parse(b) + "の励みになります（任意・遊ぶのはずっと無料）。</p>`");
 check("終えた回を消すのは同じ回のときだけ・0時を過ぎたホームの「今日」のボタンは描き直す（2026-11-04 CodeRabbit）", /c\.date === run\.date && c\.id === run\.id\) s2\.runs\[MODE\] = null/.test(html) && /\$\("go-d"\)\.onclick = \(\) => \(k !== todayKey\(\) \? home\(\)/.test(html));
 check("別のタブで今日の分を終えたあと、古い画面から今日・上級をもう一度始めない（2026-11-04 CodeRabbit）", /\(mode === "d" && s\.days\[k\]\) \|\| \(mode === "h" && s\.hdays\[k\]\)\) return;/.test(html));
 check("README の URL のすぐ後ろに全角の字を続けない（Link check が URL の一部と読む。2026-11-04）", !/https?:\/\/[\x21-\x7e]*[^\x00-\x7f]/.test(readFileSync(new URL("../README.md", import.meta.url), "utf8").replace(/\]\(https?:\/\/[^)\s]+\)/g, "").replace(/<https?:\/\/[^>\s]+>/g, "")));
@@ -52,7 +54,7 @@ const ext = [...html.matchAll(/(?:src|href)="(https?:[^"]+)"/g)].map((m) => m[1]
 check("外から読むのは文字（Google Fonts）だけ。スクリプト・広告・解析を入れない", ext.length === 0, ext.join(","));
 check("CSP で通信先を自分だけにしている", /connect-src 'self'/.test(html) && !/connect-src[^;"]*https/.test(html));
 check("Math.random は練習・とことんの問題選び（mix）ととことんの回の見分けだけ（今日の5問・上級・札の並びは日付と問題の乱数）", (html.match(/Math\.random/g) || []).length === 2);
-check("ページに🎫（回数の券）・「…すると開く」が無い（好きなだけ遊べる。2026-11-06 satou さん）", !html.includes("🎫") && !/すると開く|クリアで開く|🔒/.test(html));
+check("ページに🎫（回数の券）・「…すると開く」が無い（好きなだけ遊べる。2026-11-06 satou さん）", !gameOwn(html).includes("🎫") && !/すると開く|クリアで開く|🔒/.test(gameOwn(html)));
 check("組み立て・読み・熟語の出どころ（KanjiVG・KANJIDIC2・JMdict）を画面とデータに書いている", /KanjiVG/.test(html) && /JMdict/.test(html) && /KanjiVG/.test(readFileSync(path.join(root, "data.js"), "utf8")) && /CC BY-SA 4\.0/.test(readFileSync(path.join(root, "data.js"), "utf8")));
 check("画面にお笑いの言葉を入れない（本物っぽく）", !/お笑い|ギャグ|ボケ|ツッコミ|なんでやねん|（うそ）/.test(html));
 { const og = (k) => (html.match(new RegExp(`<meta (?:property|name)="${k}" content="([^"]+)"`)) || [])[1] || "";
@@ -232,7 +234,7 @@ try {
   const share = await page.textContent(".share");
   const daily = await page.evaluate(() => { const g = window.__bt; return g.dailyList(g.todayKey()).map((id) => g.P[id]); });
   check("5問で結果・シェアの文は番号と色だけ（答えの字・部品・熟語は出さない）", /部首たし算 #\d+/.test(share) && /🟨💡💡 🟩 🟩 🟩 🟩/.test(share) && !daily.some((q) => share.includes(q.x) || q.ps.some((c) => share.includes(c)) || share.includes(q.w)));
-  check("X・LINE は押したときに開くリンクだけ", /^https:\/\/twitter\.com\/intent\/tweet\?text=/.test(await page.getAttribute("#toX", "href")) && /^https:\/\/line\.me\/R\/share\?text=/.test(await page.getAttribute("#toLine", "href")));
+  check("X・LINE は押したときに開くリンクだけ", /^https:\/\/(?:x|twitter)\.com\/intent\/tweet\?text=/.test(await page.getAttribute("#toX", "href")) && /^https:\/\/line\.me\/R\/share\?text=/.test(await page.getAttribute("#toLine", "href")));
   check("結果に5問の答えと組み立てが出る", (await page.locator(".rlist > div").count()) === 5);
   check("まちがいのあった日は Ko-fi のひとことを出さない", (await page.locator(".kofi").count()) === 0);
   check("今日の5問の結果に「続けて遊ぶ：とことん」の大きなボタン", (await page.locator("#go-e.main").count()) === 1 && (await page.textContent("#go-e")).includes("とことん"));
